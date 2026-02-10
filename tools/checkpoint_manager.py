@@ -350,7 +350,7 @@ class CheckpointManager:
             "checkpoint_id": f"{self.agent_type.replace('-', '_')}_FINAL",
             "phase": "final",
             "timestamp": time.time(),
-            "timestamp_iso": datetime.fromtimestamp(timestamp).isoformat(),
+            "timestamp_iso": datetime.now().isoformat(),
             "items_processed": self.items_processed,
             "status": "complete"
         }
@@ -679,3 +679,551 @@ def load_checkpoint_for_continuation(agent_type: str) -> Optional[Dict[str, Any]
         "next_steps": content.get("next_steps", []),
         "checkpoint_file": f"research_data/checkpoints/{agent_type.replace('-', '_')}_FINAL.json"
     }
+
+
+# ============================================================================
+# Time Budget Management Functions (v9.3)
+# ============================================================================
+
+def parse_time_budget(user_query: str) -> Optional[Dict[str, Any]]:
+    """
+    Parse time budget from user query (v9.3).
+
+    Supports both Chinese and English time formats:
+    - Chinese: "给我1小时", "30分钟", "限时2小时"
+    - English: "in 1 hour", "30 minutes", "1h", "30min", "deadline: 2h"
+
+    Args:
+        user_query: The user's query string
+
+    Returns:
+        Dict with total_seconds, total_minutes, and source, or None if no time specified
+    """
+    import re
+
+    query_lower = user_query.lower()
+
+    # Pattern 1: Explicit "X hour/minute" format (e.g., "1 hour", "30 minutes", "2h", "90min")
+    explicit_pattern = r'(\d+(?:\.\d+)?)\s*(hour|hr|h|minute|min|m)'
+    matches = re.findall(explicit_pattern, query_lower)
+    if matches:
+        total_minutes = 0
+        for value, unit in matches:
+            value = float(value)
+            if unit.startswith('h'):
+                total_minutes += value * 60
+            else:  # minute/min/m
+                total_minutes += value
+        return {
+            "total_seconds": int(total_minutes * 60),
+            "total_minutes": int(total_minutes),
+            "source": "explicit_specification"
+        }
+
+    # Pattern 2: Chinese format "给我X小时" / "限时X小时"
+    chinese_pattern = r'(?:给我|限时?|时间限制?:?|研究时间|deadline\s*:?)\s*(\d+(?:\.\d+)?)\s*(小时|小时?|分钟|min|m)'
+    cn_match = re.search(chinese_pattern, user_query)
+    if cn_match:
+        value = float(cn_match.group(1))
+        unit = cn_match.group(2).lower()
+        if '小时' in unit or unit in ['h', 'hour']:
+            return {
+                "total_seconds": int(value * 3600),
+                "total_minutes": int(value * 60),
+                "source": "chinese_specification"
+            }
+        else:  # minutes
+            return {
+                "total_seconds": int(value * 60),
+                "total_minutes": int(value),
+                "source": "chinese_specification"
+            }
+
+    # Pattern 3: "deadline in X" / "complete in X" / "finish in X"
+    deadline_pattern = r'(?:deadline|complete|finish)(?:\s+in\s+|\s*:\s*)(\d+(?:\.\d+)?)\s*(hour|hr|h|minute|min|m)'
+    dl_match = re.search(deadline_pattern, query_lower)
+    if dl_match:
+        value = float(dl_match.group(1))
+        unit = dl_match.group(2)
+        if unit.startswith('h'):
+            return {
+                "total_seconds": int(value * 3600),
+                "total_minutes": int(value * 60),
+                "source": "deadline_specification"
+            }
+        else:
+            return {
+                "total_seconds": int(value * 60),
+                "total_minutes": int(value),
+                "source": "deadline_specification"
+            }
+
+    # Default: No time budget specified
+    return None
+
+
+def calculate_time_allocation(
+    total_budget_seconds: int,
+    subagent_count: int = 3,
+    coordination_overhead: float = 0.20
+) -> Dict[str, Any]:
+    """
+    Calculate per-agent time allocation for parallel execution (v9.3).
+
+    KEY: Agents run in PARALLEL, so each agent gets FULL available time,
+    NOT divided by agent count.
+
+    Args:
+        total_budget_seconds: Total time budget in seconds
+        subagent_count: Number of subagents (for reference only, not division)
+        coordination_overhead: Coordination buffer (default 20%)
+
+    Returns:
+        Dict with time allocation details
+    """
+    available_time = total_budget_seconds * (1 - coordination_overhead)
+
+    # Each agent gets FULL available time (parallel execution)
+    per_agent_budget = available_time
+
+    # Checkpoint interval is 10% of total budget
+    checkpoint_interval = total_budget_seconds * 0.10
+
+    return {
+        "total_budget_seconds": total_budget_seconds,
+        "total_budget_minutes": int(total_budget_seconds / 60),
+        "coordination_buffer_seconds": int(total_budget_seconds * coordination_overhead),
+        "available_time_seconds": int(available_time),
+        "per_agent_timeout_seconds": int(per_agent_budget),  # Full time, NOT divided!
+        "per_agent_timeout_minutes": int(per_agent_budget / 60),
+        "checkpoint_interval_seconds": int(checkpoint_interval),
+        "checkpoint_interval_minutes": int(checkpoint_interval / 60),
+        "start_time_iso": datetime.now().isoformat(),
+        "time_source": "calculated",
+        "subagent_count": subagent_count,
+        "wall_clock_time_seconds": total_budget_seconds,  # Same as total for parallel
+    }
+
+
+def calculate_max_turns(per_agent_timeout_seconds: int, seconds_per_turn: int = 120) -> int:
+    """
+    Calculate max_turns from time budget (v9.3).
+
+    Assumes average 2 minutes (120 seconds) per turn.
+    Minimum 10 turns to ensure meaningful work.
+
+    Args:
+        per_agent_timeout_seconds: Time budget per agent in seconds
+        seconds_per_turn: Average seconds per turn (default 120)
+
+    Returns:
+        Maximum number of turns for the agent
+    """
+    return max(10, per_agent_timeout_seconds // seconds_per_turn)
+
+
+def generate_time_budget_string(time_allocation: Dict[str, Any]) -> str:
+    """
+    Generate TIME_BUDGET string for subagent prompts (v9.3).
+
+    Args:
+        time_allocation: Dict from calculate_time_allocation()
+
+    Returns:
+        Formatted TIME_BUDGET string for prompt injection
+    """
+    return f"""
+TIME_BUDGET:
+- per_agent_timeout_seconds: {time_allocation.get('per_agent_timeout_seconds', 'default')}
+- per_agent_timeout_minutes: {time_allocation.get('per_agent_timeout_minutes', 'default')}
+- start_time_iso: {time_allocation.get('start_time_iso', datetime.now().isoformat())}
+- checkpoint_interval_seconds: {time_allocation.get('checkpoint_interval_seconds', 'default')}
+- time_source: {time_allocation.get('time_source', 'calculated')}
+
+CRITICAL: You MUST track time at each checkpoint. When remaining_seconds < 300 (5 min),
+enter ACCELERATE_MODE: stop deep analysis, skip citation chains, quickly summarize findings.
+"""
+
+
+def get_time_assessment_from_allocation(
+    time_allocation: Dict[str, Any],
+    start_time_iso: Optional[str] = None
+) -> Dict[str, Any]:
+    """
+    Get current time assessment from time allocation (v9.3).
+
+    Args:
+        time_allocation: Dict from calculate_time_allocation()
+        start_time_iso: Start time in ISO format (uses allocation's if None)
+
+    Returns:
+        Time assessment dict with elapsed, remaining, status
+    """
+    if not time_allocation:
+        return {}
+
+    start_time_str = start_time_iso or time_allocation.get('start_time_iso')
+    if not start_time_str:
+        return {}
+
+    try:
+        start_time = datetime.fromisoformat(start_time_str)
+    except (ValueError, TypeError):
+        return {}
+
+    current_time = datetime.now()
+    elapsed = (current_time - start_time).total_seconds()
+    budget_seconds = time_allocation.get('per_agent_timeout_seconds', 0)
+    remaining = budget_seconds - elapsed
+
+    # Determine time status
+    if remaining < 0:
+        time_status = "overtime"
+    elif remaining < 300:  # Less than 5 minutes
+        time_status = "time_critical"
+    elif remaining < budget_seconds * 0.25:  # Less than 25%
+        time_status = "warning"
+    else:
+        time_status = "on_track"
+
+    return {
+        "start_time": start_time_str,
+        "current_time": current_time.isoformat(),
+        "elapsed_seconds": int(elapsed),
+        "elapsed_formatted": f"{int(elapsed // 60)} minutes {int(elapsed % 60)}s",
+        "remaining_seconds": int(remaining),
+        "remaining_formatted": f"{int(remaining // 60)} minutes {int(remaining % 60)}s",
+        "budget_seconds": budget_seconds,
+        "budget_formatted": f"{int(budget_seconds // 60)} minutes",
+        "time_status": time_status,
+        "should_accelerate": remaining < 300,
+    }
+
+
+def generate_continuation_prompt(
+    agent_type: str,
+    output_file: str,
+    remaining_requirements: Dict[str, Any],
+    remaining_seconds: int
+) -> str:
+    """
+    Generate continuation prompt for relaunching an interrupted agent (v9.3).
+
+    Args:
+        agent_type: Type of agent to continue
+        output_file: Path to the agent's output file
+        remaining_requirements: Dict of requirements not yet met
+        remaining_seconds: Time remaining in seconds
+
+    Returns:
+        Formatted continuation prompt string
+    """
+    remaining_minutes = int(remaining_seconds // 60)
+
+    # Determine mode based on remaining time
+    if remaining_seconds < 600:  # Less than 10 minutes
+        mode = "RAPID_COMPLETION"
+        instructions = """
+1. Skip all full-text downloads - use abstracts only
+2. Limit to direct citations - no deep citation chain exploration
+3. Batch all tool calls together
+4. Minimum viable output for each item
+5. Focus on hitting minimum counts only
+"""
+    elif remaining_seconds < 1200:  # Less than 20 minutes
+        mode = "ACCELERATE_MODE"
+        instructions = """
+1. Prioritize abstract over full-text
+2. Track direct citations only (1 level deep)
+3. Simplify analysis output
+4. Focus on key items first
+"""
+    else:
+        mode = "CONTINUATION_MODE"
+        instructions = """
+1. Continue from checkpoint efficiently
+2. Use full-text for key papers only
+3. Track critical citation chains
+4. Maintain analysis quality
+"""
+
+    return f"""CONTINUE FROM CHECKPOINT - {mode.upper()}
+
+Your previous session was interrupted due to time limit (max_turns).
+
+AGENT TYPE: {agent_type}
+OUTPUT FILE: {output_file}
+TIME REMAINING: {remaining_seconds} seconds ({remaining_minutes} minutes)
+MODE: {mode}
+
+MINIMUM REQUIREMENTS REMAINING:
+{json.dumps(remaining_requirements, indent=2)}
+
+INSTRUCTIONS:
+{instructions}
+
+Time Budget: Use checkpoint_manager.get_time_assessment() to track progress.
+
+Remember: When remaining_seconds < 300 (5 min), enter RAPID mode and complete
+remaining items with minimal analysis.
+"""
+
+
+def should_continue_agent(
+    time_allocation: Dict[str, Any],
+    minimum_time_seconds: int = 300
+) -> tuple[bool, int, str]:
+    """
+    Determine if an agent should be relaunched based on remaining time (v9.3).
+
+    Args:
+        time_allocation: Time allocation dict
+        minimum_time_seconds: Minimum seconds required to relaunch (default 300)
+
+    Returns:
+        Tuple of (should_continue, remaining_seconds, status)
+        - status: "continue", "insufficient_time", "no_budget"
+    """
+    if not time_allocation:
+        return False, 0, "no_budget"
+
+    time_assessment = get_time_assessment_from_allocation(time_allocation)
+    remaining_seconds = time_assessment.get('remaining_seconds', 0)
+
+    if remaining_seconds >= minimum_time_seconds:
+        return True, remaining_seconds, "continue"
+    else:
+        return False, remaining_seconds, "insufficient_time"
+
+
+def format_time_confirmation(
+    phase_name: str,
+    time_allocation: Dict[str, Any],
+    extra_info: Optional[Dict[str, Any]] = None
+) -> str:
+    """
+    Format a time confirmation message for console output (v9.3).
+
+    Args:
+        phase_name: Name of the current phase
+        time_allocation: Time allocation dict
+        extra_info: Optional extra information to display
+
+    Returns:
+        Formatted time confirmation string
+    """
+    if not time_allocation:
+        return f"[TIME CONFIRM - {phase_name}]: No time budget set"
+
+    time_assessment = get_time_assessment_from_allocation(time_allocation)
+
+    lines = [
+        f"[TIME CONFIRM - {phase_name}]",
+        f"├─ Elapsed: {time_assessment.get('elapsed_formatted', 'N/A')}",
+        f"├─ Remaining: {time_assessment.get('remaining_formatted', 'N/A')}",
+        f"├─ Status: {time_assessment.get('time_status', 'unknown')}",
+    ]
+
+    if extra_info:
+        for key, value in extra_info.items():
+            lines.append(f"├─ {key}: {value}")
+
+    lines.append(f"└─ Should Accelerate: {time_assessment.get('should_accelerate', False)}")
+
+    return "\n".join(lines)
+
+
+# ============================================================================
+# Time Re-allocation Functions (v9.4) - Transfer saved time to final phases
+# ============================================================================
+
+class TimeBudgetTracker:
+    """
+    Track time spent vs budget across all phases (v9.4).
+
+    When phases complete faster than expected, re-allocate remaining time
+    to later phases (especially report synthesis) to improve quality.
+    """
+
+    def __init__(self, total_budget_seconds: int, start_time_iso: Optional[str] = None):
+        """
+        Initialize time budget tracker.
+
+        Args:
+            total_budget_seconds: Total time budget for the entire research
+            start_time_iso: Start time in ISO format
+        """
+        self.total_budget_seconds = total_budget_seconds
+        self.start_time_iso = start_time_iso or datetime.now().isoformat()
+
+        try:
+            self.start_time = datetime.fromisoformat(self.start_time_iso)
+        except (ValueError, TypeError):
+            self.start_time = datetime.now()
+            self.start_time_iso = self.start_time.isoformat()
+
+        # Phase time allocations (estimated vs actual)
+        self.phase_allocations = {
+            "Phase -1": {"estimated": 60, "actual": 0},      # Performance Prediction: 1 min
+            "Phase 0": {"estimated": 60, "actual": 0},        # Framework Selection: 1 min
+            "Phase 0.5": {"estimated": 60, "actual": 0},      # MCP Coordination: 1 min
+            "Phase 0.75": {"estimated": 0, "actual": 0},      # Production Readiness: optional
+            "Phase 1": {"estimated": total_budget_seconds * 0.60, "actual": 0},  # Research: 60%
+            "Phase 1.1": {"estimated": 60, "actual": 0},       # Completion Check: 1 min
+            "Phase 1.5": {"estimated": 300, "actual": 0},      # Cross-Domain: 5 min
+            "Phase 2a": {"estimated": 600, "actual": 0},       # Logic Analysis: 10 min
+            "Phase 2b": {"estimated": total_budget_seconds * 0.25, "actual": 0},  # Reports: 25%
+            "Phase 2d": {"estimated": 300, "actual": 0},       # Link Validation: 5 min
+            "Phase 2e": {"estimated": 0, "actual": 0},        # Task Handler: optional
+        }
+
+        # Phases completed
+        self.completed_phases = []
+        self.current_phase = None
+
+    def start_phase(self, phase_name: str):
+        """Mark the start of a phase."""
+        self.current_phase = phase_name
+
+    def end_phase(self, phase_name: str):
+        """Mark the end of a phase and record actual time."""
+        if phase_name in self.phase_allocations:
+            # Calculate actual time spent if we have a previous phase end time
+            # For now, use current time - start time as approximation
+            elapsed = int((datetime.now() - self.start_time).total_seconds())
+            # Subtract time from previous phases
+            for completed in self.completed_phases:
+                elapsed -= self.phase_allocations[completed]["actual"]
+            self.phase_allocations[phase_name]["actual"] = elapsed
+            self.completed_phases.append(phase_name)
+        self.current_phase = None
+
+    def get_saved_time(self) -> Dict[str, Any]:
+        """
+        Calculate time saved across completed phases (v9.4).
+
+        Returns:
+            Dict with saved_seconds, phases_under_budget, and re-allocation recommendations
+        """
+        total_saved = 0
+        phases_under_budget = []
+
+        for phase_name in self.completed_phases:
+            allocation = self.phase_allocations.get(phase_name, {})
+            estimated = allocation.get("estimated", 0)
+            actual = allocation.get("actual", 0)
+
+            if actual < estimated:
+                saved = estimated - actual
+                total_saved += saved
+                phases_under_budget.append({
+                    "phase": phase_name,
+                    "estimated": estimated,
+                    "actual": actual,
+                    "saved": saved
+                })
+
+        # Calculate remaining budget
+        elapsed_total = (datetime.now() - self.start_time).total_seconds()
+        remaining_budget = self.total_budget_seconds - elapsed_total
+
+        return {
+            "total_saved_seconds": int(total_saved),
+            "total_saved_minutes": int(total_saved / 60),
+            "remaining_budget_seconds": int(remaining_budget),
+            "remaining_budget_minutes": int(remaining_budget / 60),
+            "phases_under_budget": phases_under_budget,
+            "reallocate_to_reports": int(total_saved + remaining_budget),
+            "recommendation": self._get_reallocation_recommendation(total_saved, remaining_budget)
+        }
+
+    def _get_reallocation_recommendation(self, saved_seconds: int, remaining_seconds: int) -> str:
+        """Generate recommendation for time re-allocation."""
+        total_available = saved_seconds + remaining_seconds
+        available_minutes = int(total_available / 60)
+
+        if available_minutes < 5:
+            return "No significant time saved - proceed as planned"
+        elif available_minutes < 15:
+            return f"Reallocate {available_minutes}min to report synthesis for refinement"
+        elif available_minutes < 30:
+            return f"Reallocate {available_minutes}min to reports: deeper analysis + citation verification"
+        else:
+            return f"Reallocate {available_minutes}min to reports: comprehensive expansion + link validation + custom output"
+
+    def format_time_saved_report(self) -> str:
+        """Format a time saved report for console display."""
+        saved_info = self.get_saved_time()
+
+        lines = [
+            "┌─────────────────────────────────────────────────────────────┐",
+            "│  ⏱️  TIME SAVED REPORT - Re-allocating to Final Phases            │",
+            "├─────────────────────────────────────────────────────────────┤",
+            f"│  Time Saved: {saved_info['total_saved_minutes']} minutes early completion",
+            f"│  Remaining Budget: {saved_info['remaining_budget_minutes']} minutes",
+            f"│  Total Available: {saved_info['reallocate_to_reports'] // 60} minutes for final phases",
+            "│                                                                      │",
+        ]
+
+        if saved_info["phases_under_budget"]:
+            lines.append("│  Phases Under Budget:")
+            for phase_info in saved_info["phases_under_budget"]:
+                phase = phase_info["phase"]
+                saved = phase_info["saved"]
+                lines.append(f"│    • {phase}: saved {saved//60}m {saved%60}s")
+
+        lines.append("│                                                                      │")
+        lines.append(f"│  Recommendation: {saved_info['recommendation']}")
+        lines.append("└─────────────────────────────────────────────────────────────┘")
+
+        return "\n".join(lines)
+
+
+def format_phase_checkpoint(
+    phase_name: str,
+    time_allocation: Optional[Dict[str, Any]] = None,
+    progress_percent: int = 0,
+    next_phase: str = ""
+) -> str:
+    """
+    Format a phase checkpoint message (v9.4).
+
+    Args:
+        phase_name: Name of the completed phase
+        time_allocation: Time allocation dict
+        progress_percent: Overall progress percentage (0-100)
+        next_phase: Name of the next phase
+
+    Returns:
+        Formatted checkpoint message
+    """
+    elapsed_seconds = 0
+    remaining_seconds = 0
+    status = "on_track"
+
+    if time_allocation:
+        time_assessment = get_time_assessment_from_allocation(time_allocation)
+        elapsed_seconds = time_assessment.get("elapsed_seconds", 0)
+        remaining_seconds = time_assessment.get("remaining_seconds", 0)
+        status = time_assessment.get("time_status", "on_track")
+
+    # Create progress bar
+    filled = int(progress_percent / 5)
+    bar = "█" * filled + "░" * (20 - filled)
+
+    lines = [
+        "┌─────────────────────────────────────────────────────────────┐",
+        f"│  ⏱️  PHASE CHECKPOINT: {phase_name}",
+        "├─────────────────────────────────────────────────────────────┤",
+        f"│  Elapsed:   {elapsed_seconds // 60}m {elapsed_seconds % 60}s",
+        f"│  Remaining: {remaining_seconds // 60}m {remaining_seconds % 60}s",
+        f"│  Progress:  [{bar}] {progress_percent}%",
+        f"│  Status:    {status}",
+    ]
+
+    if next_phase:
+        lines.append(f"│  Next:      {next_phase}")
+
+    lines.append("└─────────────────────────────────────────────────────────────┘")
+
+    return "\n".join(lines)

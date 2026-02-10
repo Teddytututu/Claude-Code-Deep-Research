@@ -88,10 +88,25 @@
 
 │
 ┌─────────────────────────────────────────────────────────────────┐
+│ ⏱️  TIME BUDGET (INFORMATION ONLY - 无需确认)                    │
+│                                                                  │
+│  如果用户指定时间预算:                                            │
+│  ├─ Total Budget: X 小时                                        │
+│  ├─ Per-Agent Timeout: X × 80% 分钟 (NOT 除以 agent 数!)         │
+│  └─ 你实际等待时间: ~X 小时 (agents 并行运行)                    │
+│                                                                  │
+│  如果用户未指定:                                                  │
+│  └─ 基于 performance-predictor 估算默认值                          │
+│                                                                  │
+│  ⚠️ IMPORTANT: Re-allocation 自动基于 wall-clock，无需确认       │
+└────────────────────────────┬────────────────────────────────────┘
+                             │
+┌─────────────────────────────────────────────────────────────────┐
 │ Phase -1: Performance Prediction (性能预测)                      │
 │ Agent: performance-predictor                                     │
 │ 决策: 是否使用 Multi-Agent？ (45% threshold rule)                │
 └────────────────────────────┬────────────────────────────────────┘
+                             │ ⏱️  CHECKPOINT [显示 elapsed, remaining]
                              │
                     ┌─────────┴─────────┐
                     │ YES: Continue      │ NO: Single-agent
@@ -106,60 +121,66 @@
 │ Agent: framework-selector                                         │
 │ 决策: "AutoGen快、CrewAI稳、LangGraph强"                          │
 └────────────────────────────┬────────────────────────────────────┘
+                             │ ⏱️  CHECKPOINT [显示 elapsed, remaining]
                              │
 ┌─────────────────────────────────────────────────────────────────┐
 │ Phase 0.5: MCP Coordination (MCP 协调)                          │
 │ Agent: mcp-coordinator                                            │
 │ 决策: 启用 5-6 MCPs, <80 tools                                   │
 └────────────────────────────┬────────────────────────────────────┘
+                             │ ⏱️  CHECKPOINT [显示 elapsed, remaining]
                              │
 ┌─────────────────────────────────────────────────────────────────┐
 │ Phase 0.75: Production Readiness (Optional - 生产就绪度检查)     │
 │ Agent: readiness-assessor (仅当涉及生产部署时)                   │
 └────────────────────────────┬────────────────────────────────────┘
-                             │
-┌─────────────────────────────────────────────────────────────────┐
-│ Phase 0.85: Timeout Budget (Optional - 用户指定时间预算时)       │
-│ Agent: timeout-specialist                                        │
-└────────────────────────────┬────────────────────────────────────┘
+                             │ ⏱️  CHECKPOINT [显示 elapsed, remaining]
                              │
 ┌───────────────────────────────────────┐
 │ Phase 1: Parallel Research Execution │
 │   Deploy 3 research subagents        │
 │   (带 max_turns 限制)                │
 └───────────────────┬───────────────────┘
+                    │ ⏱️  CHECKPOINT [显示每个 agent 的 progress]
                     │
 ┌───────────────────┴───────────────────┐
 │ Phase 1.1: Completion Check (NEW!)    │
 │   检查 subagent 是否完成最小要求        │
 │   如未完成: 从 checkpoint 继续执行     │
 └───────────────────┬───────────────────┘
+                    │ ⏱️  CHECKPOINT [显示: 是否需要 relaunch]
                     │
 ┌───────────────────┴───────────────────┐
 │ Phase 1.5: Cross-Domain Tracking     │
 │ Agent: cross-domain-tracker           │
 └───────────────────┬───────────────────┘
+                    │ ⏱️  CHECKPOINT [显示 elapsed, remaining]
                     │
 ┌───────────────────┴───────────────────┐
 │ Phase 2a: Logic Analysis              │
 │ Agent: literature-analyzer            │
 └───────────────────┬───────────────────┘
+                    │ ⏱️  CHECKPOINT [显示 elapsed, remaining]
                     │
 ┌───────────────────┴───────────────────┐
 │ Phase 2b: Dual Report Synthesis       │
 │ ├─ deep-research-report-writer        │
 │ └─ literature-review-writer           │
 └───────────────────┬───────────────────┘
+                    │ ⏱️  CHECKPOINT [显示 elapsed, remaining]
                     │
 ┌───────────────────┴───────────────────┐
 │ Phase 2d: Link Validation (Automatic) │
 │ Agent: link-validator                  │
 └───────────────────┬───────────────────┘
+                    │ ⏱️  CHECKPOINT [显示 elapsed, remaining]
                     │
 ┌───────────────────┴───────────────────┐
 │ Phase 2e: Task Handler (Optional)     │
 │ Agent: task_handle                    │
 └───────────────────────────────────────┘
+                    │
+                    ⏱️  FINAL SUMMARY [总用时, 各 phase 用时 breakdown]
 ```
 
 **Important**:
@@ -167,6 +188,40 @@
 - Phase 1.1 runs immediately after Phase 1 subagents complete (sequential check)
 - Phase 2d runs automatically after Phase 2b
 - **CLAUDE.md 是顺序编排器**：它依次等待每个 phase 完成，然后进入下一个
+
+**⏱️ Time Re-allocation Rules (NO user confirmation - automatic)**:
+- 基于实际 wall-clock 时间，不请求用户确认
+- 如果 phases 完成 early → 自动将剩余时间 re-allocate 到 final phases
+- 如果 wall-clock 达到 deadline → 立即停止，即使"还有预算"
+- **Decision**: `reallocate_if = wall_clock_elapsed < total_budget AND phase_complete_early`
+
+**⏱️  Time Checkpoint Format / 时间检查点格式**:
+
+每个 phase 完成后，显示:
+```
+┌─────────────────────────────────────────┐
+│  ⏱️  PHASE CHECKPOINT: [Phase Name]      │
+├─────────────────────────────────────────┤
+│  Elapsed:   5m 23s                      │
+│  Remaining: 2h 54m 37s                  │
+│  Progress:  [████░░░░░░░░] 15%           │
+│  Next:      [Next Phase Name]           │
+└─────────────────────────────────────────┘
+```
+
+对于 Phase 1 (Parallel Research), 显示每个 agent 的进度:
+```
+┌─────────────────────────────────────────┐
+│  ⏱️  PHASE 1 PROGRESS                    │
+├─────────────────────────────────────────┤
+│  academic-researcher:   [████████░░] 80% │
+│  github-watcher:       [██████░░░░] 60% │
+│  community-listener:   [█████████░] 85% │
+│                                          │
+│  Overall: [███████░░░░] 75%             │
+│  Elapsed: 45m 12s | Remaining: 1h 14m 48s│
+└─────────────────────────────────────────┘
+```
 
 ---
 
@@ -745,10 +800,51 @@ WARNING: Swarm is EDUCATIONAL ONLY - NO state persistence"""
 
 ---
 
-### Phase 0.85: Timeout Budget Allocation / 超时预算分配 (可选)
+### ⏱️ TIME CONFIRM - 显示给用户 (CRITICAL - 在 Phase 1 之前!)
+
+**重要**: 必须在启动 research subagents 之前，向用户显示时间预算确认!
 
 ```python
-### Time Budget Calculation / 时间预算计算
+### TIME CONFIRM - 显示给用户确认
+print(f"""
+┌─────────────────────────────────────────────────────────────┐
+│  ⏱️  TIME BUDGET CONFIRMATION                               │
+├─────────────────────────────────────────────────────────────┤
+│  总预算:           {time_allocation['total_budget_minutes']} 分钟               │
+│  单个 Agent 时间:  {time_allocation['per_agent_timeout_minutes']} 分钟 (并行运行)        │
+│  检查点间隔:       {time_allocation['checkpoint_interval_minutes']} 分钟                 │
+│  你实际等待时间:    ~{time_allocation['total_budget_minutes']} 分钟 (agents 并行)       │
+│                                                              │
+│  说明: 每个 agent 获得 {time_allocation['per_agent_timeout_minutes']} 分钟全部时间         │
+│        (不是除以 3! agents 同时运行)                         │
+│                                                              │
+│  开始研究? (开始后 agents 将并行运行)                         │
+└─────────────────────────────────────────────────────────────┘
+""")
+```
+
+**用户确认后再启动 Phase 1**
+
+---
+
+### Phase 0.85: Timeout Budget Allocation / 超时预算分配 (内部计算)
+
+```python
+### Time Budget Calculation / 时间预算计算 (内部使用)
+
+# Import utility functions from checkpoint_manager
+from tools.checkpoint_manager import (
+    parse_time_budget,
+    calculate_time_allocation,
+    calculate_max_turns,
+    generate_time_budget_string,
+    format_time_confirmation,
+    should_continue_agent,
+    generate_continuation_prompt,
+    TimeBudgetTracker,           # v9.4: Track time saved across phases
+    format_phase_checkpoint,       # v9.4: Format phase checkpoints
+    get_time_assessment_from_allocation  # v9.4: Get time assessment
+)
 
 # Initialize time allocation (will be populated from user spec or performance-predictor)
 time_allocation = None
@@ -756,20 +852,13 @@ time_allocation = None
 # 来源1: 用户明确指定 (优先级最高)
 user_time_budget = parse_time_budget(user_query)
 if user_time_budget:
-    time_allocation = Task(
-        subagent_type="timeout-specialist",
-        prompt=f"""Analyze time budget for: {query}
-Total time: {user_time_budget['total_minutes']} minutes
-Subagents: 3 (parallel execution)
-
-Provide a JSON response with:
-1. per_agent_timeout_seconds: Time each agent gets (NOT divided by 3!)
-2. checkpoint_interval_seconds: How often to save progress
-3. start_time_iso: Current ISO timestamp for agent tracking
-4. time_source: "user_specified"
-
-Remember: Per-Agent Time = Total Budget × 80% (agents run in PARALLEL)"""
+    # Calculate time allocation using utility function
+    time_allocation = calculate_time_allocation(
+        total_budget_seconds=user_time_budget['total_seconds'],
+        subagent_count=3,
+        coordination_overhead=0.20
     )
+    time_allocation['time_source'] = 'user_specified'
 
 # 来源2: performance-predictor估算 (如果没有用户指定)
 if not time_allocation:
@@ -777,13 +866,28 @@ if not time_allocation:
     # performance_result should include estimated_time_seconds
     performance_time_estimate = performance_result.get("estimated_time_seconds", 1800)  # default 30min
 
-    time_allocation = {
-        "per_agent_timeout_seconds": performance_time_estimate,
-        "checkpoint_interval_seconds": performance_time_estimate * 0.10,  # 10% of budget
-        "start_time_iso": datetime.now().isoformat(),
-        "time_source": "performance_predictor",
-        "total_budget_seconds": performance_time_estimate
-    }
+    time_allocation = calculate_time_allocation(
+        total_budget_seconds=performance_time_estimate,
+        subagent_count=3
+    )
+    time_allocation['time_source'] = 'performance_predictor'
+
+# TIME CONFIRM: Display time allocation (information only, no confirmation needed)
+print(f"""
+[TIME BUDGET CONFIRM - Automatic Re-allocation Enabled]
+├─ Total Budget: {time_allocation['total_budget_minutes']} minutes
+├─ Per-Agent Timeout: {time_allocation['per_agent_timeout_minutes']} minutes (NOT divided by 3!)
+├─ Wall-clock you wait: ~{time_allocation['total_budget_minutes']} minutes (agents run in parallel)
+├─ Checkpoint Interval: {time_allocation['checkpoint_interval_minutes']} minutes
+├─ Time Source: {time_allocation['time_source']}
+└─ Start Time: {time_allocation['start_time_iso']}
+""")
+
+# Initialize TimeBudgetTracker for automatic re-allocation (NO user confirmation)
+time_tracker = TimeBudgetTracker(
+    total_budget_seconds=time_allocation['total_budget_seconds'],
+    start_time_iso=time_allocation['start_time_iso']
+)
 ```
 
 **Key Formula**: `Per-Agent Time = Total Budget × 80%` (每个 agent 获得全部可用时间，不是除以3！)
@@ -806,28 +910,28 @@ if not time_allocation:
 
 ```python
 ### Calculate max_turns based on time allocation
-# 假设每个turn平均2分钟，per_agent_budget_seconds / 120 = max_turns
+# Use utility function to calculate max_turns
 max_turns_per_agent = None
-start_time_iso = datetime.now().isoformat()
-
-if time_allocation and time_allocation.get("per_agent_timeout_seconds"):
-    budget_seconds = time_allocation["per_agent_timeout_seconds"]
-    # Calculate max_turns: assuming 2 minutes per turn on average
-    max_turns_per_agent = max(10, budget_seconds // 120)
-
-# Prepare time budget string for subagents
 time_budget_str = ""
-if time_allocation:
-    time_budget_str = f"""
-TIME_BUDGET:
-- per_agent_timeout_seconds: {time_allocation.get('per_agent_timeout_seconds', 'default')}
-- start_time_iso: {time_allocation.get('start_time_iso', start_time_iso)}
-- checkpoint_interval_seconds: {time_allocation.get('checkpoint_interval_seconds', 'default')}
-- time_source: {time_allocation.get('time_source', 'default')}
 
-CRITICAL: You MUST track time at each checkpoint. When remaining_seconds < 300 (5 min),
-enter ACCELERATE_MODE: stop deep analysis, skip citation chains, quickly summarize findings.
-"""
+if time_allocation:
+    # Calculate max_turns: assuming 2 minutes (120 seconds) per turn on average
+    max_turns_per_agent = calculate_max_turns(
+        per_agent_timeout_seconds=time_allocation.get("per_agent_timeout_seconds", 0),
+        seconds_per_turn=120
+    )
+
+    # Generate TIME_BUDGET string for subagent prompts
+    time_budget_str = generate_time_budget_string(time_allocation)
+
+# TIME CONFIRM: Display deployment parameters before launching subagents
+print(f"""
+[TIME CONFIRM - Phase 1: Subagent Deployment]
+├─ Max Turns per Agent: {max_turns_per_agent}
+├─ Per-Agent Timeout: {time_allocation.get('per_agent_timeout_minutes', 'N/A')} minutes
+├─ Subagents to Deploy: 3 (academic-researcher, github-watcher, community-listener)
+└─ Time Budget String Generated: {len(time_budget_str)} characters
+""")
 
 # 并行部署（在一个 Claude 消息中）
 # IMPORTANT: Pass max_turns parameter to enforce time limits
@@ -929,6 +1033,18 @@ academic_result = wait_for_task(academic_task)
 github_result = wait_for_task(github_task)
 community_result = wait_for_task(community_task)
 
+# TIME CONFIRM: Check elapsed time after subagent completion
+if time_allocation:
+    from tools.checkpoint_manager import get_time_assessment_from_allocation
+    time_assessment = get_time_assessment_from_allocation(time_allocation)
+    print(f"""
+[TIME CONFIRM - Phase 1.0: Subagent Completion]
+├─ Elapsed Time: {time_assessment.get('elapsed_formatted', 'N/A')}
+├─ Remaining Time: {time_assessment.get('remaining_formatted', 'N/A')}
+├─ Time Status: {time_assessment.get('time_status', 'unknown')}
+└─ Should Accelerate: {time_assessment.get('should_accelerate', False)}
+""")
+
 # 检查每个 subagent 的完成状态
 subagents = [
     ("academic-researcher", academic_result, "research_data/academic_researcher_output.json"),
@@ -940,12 +1056,7 @@ for agent_type, result, output_file in subagents:
     is_complete, remaining = check_minimum_requirements(output_file, agent_type)
 
     if not is_complete:
-        print(f"[CLAUDE.md] {agent_type} incomplete: {remaining}")
-
         # 检查是否有 checkpoint 可以继续
-        checkpoint_file = f"research_data/checkpoints/{agent_type.replace('-', '_')}_FINAL.json"
-
-        # 如果没有最终 checkpoint，查找最新的
         from pathlib import Path
         checkpoint_dir = Path("research_data/checkpoints")
         checkpoints = sorted(checkpoint_dir.glob(f"{agent_type.replace('-', '_')}_*.json"))
@@ -953,46 +1064,82 @@ for agent_type, result, output_file in subagents:
         if checkpoints:
             latest_checkpoint = checkpoints[-1]
 
-            # 计算剩余时间
+            # 使用 utility 函数判断是否继续
             if time_allocation:
-                elapsed = (datetime.now() - datetime.fromisoformat(
-                    time_allocation.get("start_time_iso", datetime.now().isoformat())
-                )).total_seconds()
-                total_budget = time_allocation.get("total_budget_seconds", 3600)
-                remaining_seconds = total_budget - elapsed
+                should_continue, remaining_seconds, status = should_continue_agent(time_allocation)
 
-                # 只有当剩余时间 >= 5 分钟时才继续
-                if remaining_seconds >= 300:
-                    print(f"[CLAUDE.md] Relaunching {agent_type} with {remaining_seconds}s remaining")
+                if status == "continue":
+                    new_max_turns = calculate_max_turns(remaining_seconds, seconds_per_turn=120)
 
-                    # 重新启动 agent，传递 continuation 指令
+                    # 使用 utility 函数生成 continuation prompt
+                    continuation_prompt = generate_continuation_prompt(
+                        agent_type=agent_type,
+                        output_file=output_file,
+                        remaining_requirements=remaining,
+                        remaining_seconds=remaining_seconds
+                    )
+
+                    # 添加 checkpoint 信息到 prompt
+                    continuation_prompt += f"\n\nLATEST CHECKPOINT: {latest_checkpoint}"
+
+                    print(format_time_confirmation(
+                        f"Phase 1.1: Relaunch {agent_type}",
+                        time_allocation,
+                        {
+                            "New Max Turns": new_max_turns,
+                            "Checkpoint": latest_checkpoint.name,
+                            "Mode": "ACCELERATE" if remaining_seconds < 1200 else "CONTINUATION"
+                        }
+                    ))
+
+                    # 重新启动 agent
                     Task(
                         subagent_type=agent_type,
-                        prompt=f"""CONTINUE FROM CHECKPOINT
-
-Your previous session was interrupted due to time limit (max_turns).
-
-LATEST CHECKPOINT: {latest_checkpoint}
-TIME_REMAINING: {remaining_seconds} seconds ({int(remaining_seconds//60)} minutes)
-
-MINIMUM REQUIREMENTS REMAINING:
-{json.dumps(remaining, indent=2)}
-
-INSTRUCTIONS:
-1. Load the checkpoint data from {output_file}
-2. Continue from where you left off
-3. Enter ACCELERATE_MODE: Focus on completing minimum requirements only
-4. Skip deep analysis and citation chains
-5. Prioritize quantity over quality for remaining items
-
-Time Budget: Use checkpoint_manager.get_time_assessment() to track progress.
-""",
-                        max_turns=max(5, remaining_seconds // 120)  # 至少5轮
+                        prompt=continuation_prompt,
+                        max_turns=new_max_turns
                     )
-                else:
-                    print(f"[CLAUDE.md] Insufficient time to continue {agent_type}")
-            else:
-                print(f"[CLAUDE.md] No time budget set, cannot continue {agent_type}")
+
+                    # 等待 relaunch 完成并再次检查
+                    relaunch_complete, relaunch_remaining = check_minimum_requirements(output_file, agent_type)
+
+                    print(format_time_confirmation(
+                        f"Phase 1.1: Relaunch Complete ({agent_type})",
+                        time_allocation,
+                        {
+                            "Now Complete": relaunch_complete,
+                            "Still Missing": str(relaunch_remaining) if not relaunch_complete else "None"
+                        }
+                    ))
+
+                    # 如果仍未完成且还有时间，可以再尝试一次（最多2次续传）
+                    if not relaunch_complete and remaining_seconds >= 600:
+                        final_max_turns = calculate_max_turns(remaining_seconds // 2, seconds_per_turn=120)
+                        final_prompt = generate_continuation_prompt(
+                            agent_type=agent_type,
+                            output_file=output_file,
+                            remaining_requirements=relaunch_remaining,
+                            remaining_seconds=remaining_seconds // 2
+                        )
+                        final_prompt += "\n\nThis is your SECOND and FINAL continuation. Complete rapidly."
+
+                        print(f"[TIME CONFIRM - Phase 1.1: Final Relaunch {agent_type}]")
+                        print(f"├─ Last attempt with {final_max_turns} turns")
+
+                        Task(
+                            subagent_type=agent_type,
+                            prompt=final_prompt,
+                            max_turns=final_max_turns
+                        )
+
+                elif status == "insufficient_time":
+                    print(format_time_confirmation(
+                        f"Phase 1.1: Skip {agent_type}",
+                        time_allocation,
+                        {
+                            "Required": "5 minutes minimum",
+                            "Status": "INSUFFICIENT TIME - accepting incomplete"
+                        }
+                    ))
         else:
             print(f"[CLAUDE.md] No checkpoint found for {agent_type}, cannot continue")
 ```
@@ -1042,6 +1189,19 @@ Time Budget: Use checkpoint_manager.get_time_assessment() to track progress.
 ### Phase 1.5: Cross-Domain Tracking / 跨域关系追踪
 
 ```python
+# Mark Phase 1 as complete for time tracking
+time_tracker.end_phase("Phase 1")
+
+# TIME CHECKPOINT: Display current progress
+print(format_phase_checkpoint(
+    "Phase 1.5: Cross-Domain Tracking",
+    time_allocation,
+    progress_percent=60,
+    next_phase="Logic Analysis"
+))
+
+if time_allocation:
+    print(format_time_confirmation("Phase 1.5: Cross-Domain Tracking", time_allocation))
 Task(
     subagent_type="cross-domain-tracker",
     prompt=f"""Analyze cross-domain relationships between research domains.
@@ -1073,6 +1233,20 @@ See .claude/agents/cross-domain-tracker.md for complete specification."""
 ### Phase 2a: Logic Analysis / 逻辑分析
 
 ```python
+# Mark Phase 1.5 as complete for time tracking
+time_tracker.end_phase("Phase 1.5")
+
+# TIME CHECKPOINT: Before logic analysis
+print(format_phase_checkpoint(
+    "Phase 2a: Logic Analysis",
+    time_allocation,
+    progress_percent=75,
+    next_phase="Report Synthesis"
+))
+
+if time_allocation:
+    print(format_time_confirmation("Phase 2a: Logic Analysis", time_allocation))
+
 Task(
     subagent_type="literature-analyzer",
     prompt=f"""Analyze research data for logical relationships.
@@ -1098,6 +1272,72 @@ The `literature-analyzer` agent handles:
 ---
 
 ### Phase 2b: Dual Report Synthesis / 双报告合成
+
+```python
+# ⏱️ AUTOMATIC TIME RE-ALLOCATION - No user confirmation, based on wall-clock
+from tools.checkpoint_manager import TimeBudgetTracker, format_phase_checkpoint
+
+# Initialize tracker at session start (before Phase -1)
+time_tracker = TimeBudgetTracker(
+    total_budget_seconds=time_allocation['total_budget_seconds'],
+    start_time_iso=time_allocation['start_time_iso']
+)
+
+# Mark completed phases (done after each phase finishes)
+for phase in ["Phase -1", "Phase 0", "Phase 0.5", "Phase 0.75", "Phase 1", "Phase 1.1", "Phase 1.5", "Phase 2a"]:
+    time_tracker.end_phase(phase)
+
+# Before report synthesis, check wall-clock time saved
+saved_info = time_tracker.get_saved_time()
+wall_clock_elapsed = (datetime.now() - datetime.fromisoformat(time_allocation['start_time_iso'])).total_seconds()
+wall_clock_remaining = time_allocation['total_budget_seconds'] - wall_clock_elapsed
+
+# Re-allocation decision: ONLY if wall-clock says we have time
+if wall_clock_remaining > 600:  # At least 10 minutes wall-clock remaining
+    reallocated_seconds = int(saved_info['total_saved_seconds'] + wall_clock_remaining)
+    reallocated_minutes = reallocated_seconds // 60
+
+    print(f"""
+┌─────────────────────────────────────────────────────────────┐
+│  ⏱️  TIME SAVED - Auto re-allocating {reallocated_minutes}min to Reports   │
+├─────────────────────────────────────────────────────────────┤
+│  Wall-clock elapsed: {int(wall_clock_elapsed // 60)}min                         │
+│  Wall-clock remaining: {int(wall_clock_remaining // 60)}min                       │
+│  Phases under budget: {len(saved_info['phases_under_budget'])}                     │
+│                                                                      │
+│  ACTION: Report writers get +{reallocated_minutes}min for quality           │
+│  • Deeper analysis and synthesis                                  │
+│  • Comprehensive citation verification                            │
+│  • Enhanced quality validation                                    │
+└─────────────────────────────────────────────────────────────┘
+""")
+
+    # Extend time allocation for report writers
+    extended_time_allocation = time_allocation.copy()
+    extended_time_allocation['per_agent_timeout_seconds'] = wall_clock_remaining
+    extended_time_allocation['per_agent_timeout_minutes'] = int(wall_clock_remaining / 60)
+    extended_time_allocation['mode'] = 'extended_quality'
+
+else:
+    # Wall-clock says stop - use original allocation
+    print(f"[TIME CONFIRM] Wall-clock at deadline - using standard allocation")
+    extended_time_allocation = time_allocation
+    extended_time_allocation['mode'] = 'standard'
+```
+
+**Comprehensive Report** (with extended time if wall-clock allows):
+```python
+# Pass extended_time_allocation to report writers
+Task(
+    subagent_type="deep-research-report-writer",
+    prompt=f"""Synthesize research findings into a comprehensive report.
+
+TIME ALLOCATION: You have {extended_time_allocation['per_agent_timeout_minutes']} minutes total.
+If the research phases completed early, use the extra time for:
+- Deeper analysis of findings
+- More comprehensive citation verification
+- Enhanced quality validation
+- Additional synthesis insights
 
 **Comprehensive Report**:
 ```python
@@ -1199,6 +1439,22 @@ OUTPUT: research_output/{sanitized_topic}_{task_type}.md"""
 ---
 
 ### Phase 3: Report Delivery / 报告交付
+
+```python
+# TIME CONFIRM: Final time assessment at completion
+if time_allocation:
+    time_assessment = get_time_assessment_from_allocation(time_allocation)
+    efficiency = int((time_assessment.get('elapsed_seconds', 0) / time_allocation.get('total_budget_seconds', 1)) * 100)
+
+    print(format_time_confirmation(
+        "Phase 3: Report Delivery - FINAL",
+        time_allocation,
+        {
+            "Total Budget": f"{time_allocation.get('total_budget_minutes', 'N/A')} minutes",
+            "Time Efficiency": f"{efficiency}% used"
+        }
+    ))
+```
 
 After both report writer agents complete:
 
