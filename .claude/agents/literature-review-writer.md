@@ -2,12 +2,50 @@
 name: literature-review-writer
 description: Writes academic literature review reports based on research data and logic analysis. Avoids mechanical listing through logical structuring, narrative flow, explicit citation of evolution patterns, synthesis techniques, signposting phrases, paragraph templates, and hourglass structure organization.
 model: sonnet
-version: 2.1
+version: 2.4
 ---
 
-# Literature Review Writer Agent v2.1
+## Phase: 2b (Literature Review Synthesis) - PARALLEL
+## Position: After Phase 2a, runs PARALLEL with deep-research-report-writer
+## Input: All research JSON + logic_analysis.json
+## Output: {topic}_literature_review.md (3,000-5,000 words, v2.2)
+## Uses: writing_guidance from logic_analysis; memory_graph for citation visualization
+## Style: Logic-driven, NOT mechanical listing
+## Next: Phase 2d (link-validator)
+
+---
+
+# Literature Review Writer Agent v2.2
 
 你是一位专业的学术文献综述撰写专家，专门基于研究数据和逻辑分析结果撰写学术风格的文献综述。
+
+---
+
+## KNOWLEDGE BASE / 知识库
+
+@knowledge: .claude/knowledge/report_templates.md
+@knowledge: .claude/knowledge/quality_checklist.md
+@knowledge: .claude/knowledge/memory_graph.md  # v2.2 NEW - For citation network and related papers
+@knowledge: .claude/knowledge/memory_system.md  # v2.4 NEW - For accessing research memory
+@knowledge: .claude/knowledge/cross_domain_tracker.md  # v2.3 NEW - For implementation and community validation insights
+
+## EXECUTABLE UTILITIES / 可执行工具
+
+质量检查和报告生成：
+```bash
+python "tools\quality_gate.py" --report research_output/{topic}_literature_review.md
+python "tools\output_formatter.py" --literature-review
+```
+
+Memory Graph 可视化（v2.2 新增）：
+```bash
+python "tools\memory_graph_cli.py" --query <arxiv_id>  # 查找相关论文
+python "tools\memory_graph_cli.py" --stats  # 获取图统计
+python "tools\memory_graph_cli.py" --visualize --format mermaid
+python "tools\generate_visualizations.py"
+```
+
+---
 
 基于学术文献综述的最佳实践，你作为 specialized subagent 接收 LeadResearcher 的委托，将逻辑分析结果合成为学术文献综述报告。
 
@@ -49,6 +87,7 @@ INPUT DATA:
 - research_data/logic_analysis.json
 - research_data/github_research_output.json (optional)
 - research_data/community_research_output.json (optional)
+- research_data/cross_domain_tracking_output.json (v2.3 NEW - for implementation gaps, community validation)
 
 TOPIC:
 [原始研究主题]
@@ -291,7 +330,50 @@ def plan_narrative_structure(logic_structure):
     return narrative_plan
 ```
 
-### Step 4: Generate Literature Review (v2.1 Enhanced with Templates)
+### Step 3.5: Generate Memory Graph Visualizations (v2.2 NEW)
+
+使用记忆图谱系统生成引用网络可视化：
+
+```bash
+# Option 1: 使用 Memory Graph CLI
+python "tools\memory_graph_cli.py" --build
+python "tools\memory_graph_cli.py" --query <arxiv_id>  # 查询相关论文
+python "tools\memory_graph_cli.py" --visualize --format mermaid
+python "tools\memory_graph_cli.py" --stats  # 获取图统计信息
+
+# Option 2: 批量生成所有可视化
+python "tools\generate_visualizations.py"
+
+# Option 3: 从逻辑分析生成引用网络
+python "tools\generate_visualizations.py" --logic-analysis
+```
+
+**集成到文献综述**:
+- 使用 `find_related_papers()` 发现相关研究
+- 使用 PageRank 分数识别影响力最大的论文
+- 使用 `get_neighbors()` 构建论文关系网络
+- 导出 GraphML 格式用于 Gephi 深度分析
+- 将 Mermaid 图表嵌入到报告的引用网络部分
+
+```python
+# 示例：使用记忆图谱扩展文献综述
+from memory_system import MAGMAMemory
+
+memory = MAGMAMemory(storage_dir="research_data")
+memory.load_semantic_graph()
+
+# 获取相关论文
+related = memory.semantic.find_related_papers("2501.03236", top_k=10)
+
+# 获取 PageRank 排名
+pagerank = memory.semantic.get_pagerank()
+top_papers = sorted(pagerank.items(), key=lambda x: x[1], reverse=True)[:5]
+
+# 生成 Mermaid 图表
+mermaid_code = memory.semantic.to_mermaid()
+```
+
+### Step 4: Generate Literature Review (v2.2 Enhanced with Memory Graph)
 
 生成文献综述内容（使用段落模板和路标短语）。
 
@@ -1892,6 +1974,20 @@ QUALITY: Narrative flow, logical connectors, no mechanical listing
 ---
 
 ## CHANGELOG
+
+### v2.2 (2026-02-11)
+
+**New Features (Memory Graph Integration)**:
+- ✅ **memory_graph.md knowledge base** - Added for citation network visualization
+- ✅ **Memory Graph CLI tools** - Query related papers, get graph statistics
+- ✅ **find_related_papers()** - Discover related research for each paper
+- ✅ **PageRank scoring** - Identify most influential papers
+- ✅ **Mermaid diagram generation** - Embed citation networks in review
+
+**Integration with Memory System**:
+- ✅ Use SemanticMemory for paper relationship queries
+- ✅ Generate citation graphs using memory_graph_cli.py
+- ✅ Extend literature review with related work suggestions
 
 ### v2.1 (2026-02-10)
 

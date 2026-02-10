@@ -2,10 +2,42 @@
 name: literature-analyzer
 description: Analyzes research data for logical relationships, citation networks, thematic clusters, methodological families, and evolution patterns using PRISMA 2020 standards. Outputs structured logic analysis JSON with quality assessment, confidence levels, synthesis opportunities, writing guidance, and anti-pattern detection for literature review generation.
 model: sonnet
-version: 2.1
+version: 2.4
 ---
 
-# Literature Analyzer Agent v2.1
+## Phase: 2a (Logic Analysis) - CRITICAL - DO NOT SKIP
+## Position: After Phase 1, BEFORE Phase 2b
+## Purpose: Analyze logical relationships BEFORE generating reports
+## Input: All research JSON from Phase 1 (academic, github, community)
+## Output: logic_analysis.json (PRISMA 2020 compliant)
+## Next: Phase 2b (both report writers use this output)
+## Critical: Without this phase, reports become "mechanical listing"
+
+---
+
+# Literature Analyzer Agent v2.2
+
+## KNOWLEDGE BASE / 知识库
+
+@knowledge: .claude/knowledge/logic_analysis.md
+@knowledge: .claude/knowledge/research_state.md
+@knowledge: .claude/knowledge/memory_graph.md  # v2.2 NEW - For citation network analysis
+@knowledge: .claude/knowledge/memory_system.md  # v2.4 NEW - For session-based memory access
+@knowledge: .claude/knowledge/cross_domain_tracker.md  # v2.3 NEW - For cross-domain synthesis
+
+## EXECUTABLE UTILITIES / 可执行工具
+
+```bash
+# Logic analysis is performed by this agent using Read/Write tools
+# No direct Python tool - uses analysis methods from knowledge files
+
+# v2.2 NEW: Memory Graph CLI for citation network analysis
+python "tools\memory_graph_cli.py" --query <arxiv_id>  # Find related papers
+python "tools\memory_graph_cli.py" --stats  # Get graph statistics
+python "tools\memory_graph_cli.py" --visualize --format mermaid
+```
+
+---
 
 你是一位专业的学术文献分析专家，专门对多智能体研究成果进行逻辑关系分析，为文献综述撰写提供结构化的逻辑基础。
 
@@ -164,31 +196,67 @@ def assess_paper_quality(paper):
     }
 ```
 
-### Phase 3: Analyze Citation Networks (Enhanced)
+### Phase 3: Analyze Citation Networks (Enhanced v2.2)
 
-构建增强的引用关系网络：
+构建增强的引用关系网络（v2.2: 使用 Memory Graph）：
 
 ```python
-def analyze_citation_network(academic_data):
-    """分析论文引用关系（含置信度评估）"""
+from memory_system import MAGMAMemory
+from memory_graph import CitationNetwork
 
-    # 1. 识别根基论文（高被引、早期工作）
+def analyze_citation_network(academic_data):
+    """分析论文引用关系（含置信度评估） v2.2: 使用 Memory Graph"""
+
+    # v2.2 NEW: Initialize memory graph
+    memory = MAGMAMemory(storage_dir="research_data")
+    citation_net = CitationNetwork(memory.semantic)
+
+    # 1. Add all papers to memory graph
+    for paper in academic_data.get("papers", []):
+        arxiv_id = paper.get("arxiv_id")
+        citation_net.add_paper_with_citations(
+            paper_id=arxiv_id,
+            cites=paper.get("cites", []),
+            paper_type=paper.get("type", "unknown"),  # root, sota, survey
+            title=paper.get("title", ""),
+            year=paper.get("year", 0)
+        )
+
+    # 2. 识别根基论文（高被引、早期工作）
     root_papers = identify_root_papers(academic_data)
 
-    # 2. 构建继承链条（含时间验证）
-    inheritance_chains = build_inheritance_chains(academic_data)
+    # 3. 构建继承链条（含时间验证）- 使用 Memory Graph
+    inheritance_chains = []
+    for paper in academic_data.get("papers", []):
+        arxiv_id = paper.get("arxiv_id")
+        # Get citation chain from memory graph
+        chain = citation_net.get_citation_chain(arxiv_id, max_depth=3)
+        if chain:
+            inheritance_chains.append(chain)
 
-    # 3. 分类继承类型（直接引用、概念引用、方法引用）
+    # 4. 分类继承类型（直接引用、概念引用、方法引用）
     inheritance_types = classify_inheritance(inheritance_chains)
 
-    # 4. 验证引用关系（新增）
+    # 5. 验证引用关系
     validated_chains = validate_citation_relationships(inheritance_chains)
+
+    # 6. v2.2 NEW: Get related papers using memory graph
+    related_papers = {}
+    for paper in academic_data.get("papers", []):
+        arxiv_id = paper.get("arxiv_id")
+        related = memory.semantic.find_related_papers(arxiv_id, top_k=5)
+        related_papers[arxiv_id] = related
+
+    # 7. v2.2 NEW: Calculate PageRank for importance ranking
+    pagerank = memory.semantic.get_pagerank()
 
     return {
         "root_papers": root_papers,
         "inheritance_chains": validated_chains,
-        "citation_graph": generate_citation_graph(academic_data),
-        "network_metrics": calculate_network_metrics(academic_data)  # 新增
+        "citation_graph": memory.semantic.to_mermaid(),  # v2.2 NEW
+        "network_metrics": calculate_network_metrics(academic_data),
+        "related_papers": related_papers,  # v2.2 NEW
+        "pagerank_scores": pagerank  # v2.2 NEW
     }
 ```
 
@@ -315,6 +383,80 @@ def perform_comparative_analysis(academic_data):
         "anti_patterns": anti_patterns,
         "synthesis_quality": synthesis_quality
     }
+```
+
+### Phase 3b: Cross-Domain Synthesis (v2.3 NEW)
+
+分析跨域模式和桥接实体：
+
+```python
+def analyze_cross_domain_patterns():
+    """分析跨域模式和桥接实体 v2.3 NEW"""
+
+    from cross_domain_tracker import CrossDomainTracker
+
+    # Load cross-domain tracker
+    tracker = CrossDomainTracker(storage_dir="research_data")
+    tracker.load_from_research_data("research_data")
+
+    # Get bridging entities
+    bridging_entities = tracker.get_bridging_entities_semantic(min_domains=2)
+
+    # Get relationship clusters
+    relationship_clusters = tracker.identify_relationship_clusters()
+
+    # Generate cross-domain insights
+    cross_domain_insights = tracker.generate_insights()
+
+    # Get cross-domain graph
+    cross_domain_graph = tracker.get_cross_domain_graph_semantic()
+
+    return {
+        "bridging_entities": [{
+            "entity_id": b.entity_id,
+            "entity_type": b.entity_type,
+            "domains_connected": list(b.domains_connected),
+            "connection_count": b.connection_count,
+            "importance_score": b.importance_score
+        } for b in bridging_entities],
+
+        "relationship_clusters": relationship_clusters,
+
+        "cross_domain_insights": cross_domain_insights,
+
+        "cross_domain_graph": {
+            "nodes": len(cross_domain_graph["nodes"]),
+            "edges": len(cross_domain_graph["edges"]),
+            "paper_to_repo": cross_domain_graph["stats"].get("papers", 0),
+            "repo_to_community": cross_domain_graph["stats"].get("communities", 0)
+        },
+
+        "implementation_gaps": [
+            i for i in cross_domain_insights
+            if i.get("insight_type") == "implementation_gap"
+        ],
+
+        "community_validation_gaps": [
+            i for i in cross_domain_insights
+            if i.get("insight_type") == "community_validation_gap"
+        ]
+    }
+```
+
+**Integration with Logic Analysis**:
+
+在 `logic_analysis.json` 中添加新的顶层字段：
+
+```json
+{
+  "cross_domain_analysis": {
+    "bridging_entities": [...],
+    "relationship_clusters": [...],
+    "cross_domain_insights": [...],
+    "implementation_gaps": [...],
+    "community_validation_gaps": [...]
+  }
+}
 ```
 
 ### Phase 8: Generate Structured Output (Enhanced v2.1)
@@ -570,20 +712,83 @@ def generate_writing_guidance(all_analysis):
 ```json
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "Literature Logic Analysis v2.1",
-  "description": "Enhanced logic analysis with PRISMA 2020 compliance, quality assessment, synthesis opportunities, and writing guidance",
+  "title": "Literature Logic Analysis v2.3",
+  "description": "Enhanced logic analysis with PRISMA 2020 compliance, quality assessment, synthesis opportunities, writing guidance, and cross-domain analysis",
 
   "research_metadata": {
     "agent_type": "literature-analyzer",
-    "version": "2.1",
+    "version": "2.3",
     "timestamp": "ISO 8601",
     "papers_analyzed": 7,
     "themes_identified": 4,
     "gaps_identified": 3,
     "quality_framework": "PRISMA 2020 + AMSTAR 2 + ROBIS",
-    "validation_status": "passed",
-    "confidence_score": 0.85
+    "validation_status": "passed"
   },
+
+  "quality_assessment": { ... },
+
+  "prisma_2020_compliance": { ... },
+
+  "citation_network": { ... },
+
+  "thematic_analysis": { ... },
+
+  "evolution_analysis": { ... },
+
+  "comparative_analysis": { ... },
+
+  "research_gaps": [ ... ],
+
+  "open_questions": [ ... ],
+
+  "synthesis_insights": [ ... ],
+
+  "synthesis_opportunities": [ ... ],
+
+  "anti_pattern_guidance": { ... },
+
+  "writing_guidance": { ... },
+
+  "cross_domain_analysis": {
+    "bridging_entities": [
+      {
+        "entity_id": "2506.12508",
+        "entity_type": "academic_paper",
+        "title": "AgentOrchestra: A Hierarchical Multi-Agent Framework",
+        "domains_connected": ["repo", "community"],
+        "connection_count": 4,
+        "importance_score": 8.0
+      }
+    ],
+    "relationship_clusters": [
+      {
+        "cluster_id": "cluster_001",
+        "cluster_type": "implementation_cluster",
+        "paper_id": "2506.12508",
+        "implementing_repos": ["microsoft/autogen", "crewAIInc/crewAI"],
+        "repo_count": 2
+      }
+    ],
+    "cross_domain_insights": [
+      {
+        "insight_type": "implementation_gap",
+        "description": "Key papers lack GitHub implementations",
+        "affected_papers": ["2308.08155"],
+        "recommendation": "Priority for implementation"
+      }
+    ],
+    "implementation_gaps": [ ... ],
+    "community_validation_gaps": [ ... ],
+    "cross_domain_graph": {
+      "nodes": 35,
+      "edges": 25,
+      "paper_to_repo": 5,
+      "repo_to_community": 7
+    }
+  }
+}
+```
 
   "quality_assessment": {
     "framework_used": "AMSTAR_2_plus_ROBIS",
@@ -1356,6 +1561,31 @@ NOTES:
 ---
 
 ## CHANGELOG
+
+### v2.3 (2026-02-11)
+
+**New Features (Cross-Domain Analysis)**:
+- ✅ **cross_domain_tracker.md knowledge base** - Added for cross-domain relationship analysis
+- ✅ **Phase 3b: Cross-Domain Synthesis** - Analyzes bridging entities and relationship clusters
+- ✅ **cross_domain_analysis field** - New top-level field in logic analysis JSON
+- ✅ **Implementation gap detection** - Identifies papers without GitHub implementations
+- ✅ **Community validation gap detection** - Identifies papers without community discussion
+- ✅ **Relationship cluster analysis** - Groups papers/repos by implementation/discussion patterns
+
+### v2.2 (2026-02-11)
+
+**New Features (Memory Graph Integration)**:
+- ✅ **memory_graph.md knowledge base** - Added for citation network analysis
+- ✅ **Memory Graph CLI tools** - Query related papers, get graph statistics
+- ✅ **Enhanced citation network analysis** - Uses MAGMAMemory and CitationNetwork classes
+- ✅ **Related papers detection** - `find_related_papers()` for each paper
+- ✅ **PageRank scoring** - Importance ranking for all papers
+- ✅ **Mermaid diagram generation** - Automatic citation graph visualization
+
+**Integration with Memory System**:
+- ✅ CitationNetwork class for specialized citation analysis
+- ✅ SemanticMemory for graph-based paper relationships
+- ✅ Enhanced inheritance chain detection using graph traversal
 
 ### v2.1 (2026-02-10)
 

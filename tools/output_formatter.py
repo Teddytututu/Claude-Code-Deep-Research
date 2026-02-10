@@ -71,6 +71,20 @@ class ReportFormatter:
 
 ---
 
+## Visualizations / 可视化分析
+
+{visualization_section}
+
+{visualization_embeds}
+
+---
+
+## Visualizations / 可视化分析
+
+{visualization_section}
+
+---
+
 ## Open Source Ecosystem / 开源生态
 
 {open_source_ecosystem}
@@ -310,6 +324,77 @@ Research → Custom orchestration with parallel subagents
         citations = [self.format_discussion_citation(d) for d in discussions]
         return "\n".join(citations)
 
+    def format_visualization_section(self, visualizations: Optional[Dict[str, str]] = None) -> str:
+        """
+        Format visualization section with embedded HTML.
+
+        Args:
+            visualizations: Dictionary of visualization name to HTML embed code
+
+        Returns:
+            Formatted visualization section
+        """
+        if not visualizations:
+            return """
+*Visualizations require the pyvis library. Install with:*
+```bash
+pip install pyvis
+```
+Then re-run the visualization generator.*
+"""
+
+        output = []
+
+        if "citation_network" in visualizations:
+            output.append("### Citation Network / 引用网络\n")
+            output.append(visualizations["citation_network"])
+            output.append("\n")
+
+        if "cross_domain" in visualizations:
+            output.append("### Cross-Domain Relationships / 跨域关系图谱\n")
+            output.append(visualizations["cross_domain"])
+            output.append("\n")
+            output.append("""
+**节点说明 / Node Legend:**
+- 🔵 蓝色圆形 = Academic Paper / 学术论文
+- 🟢 绿色方形 = GitHub Repository / 代码库
+- 🟠 橙色菱形 = Community Discussion / 社区讨论
+""")
+
+        return "\n".join(output)
+
+    def generate_visualizations(
+        self,
+        research_data_dir: str = "research_data",
+        output_dir: str = "research_output/visualizations"
+    ) -> Dict[str, str]:
+        """
+        Generate visualizations from research data.
+
+        Args:
+            research_data_dir: Directory containing research data JSON files
+            output_dir: Directory for visualization outputs
+
+        Returns:
+            Dictionary of visualization names to HTML embed codes
+        """
+        try:
+            from visualization import VisualizationBuilder
+
+            builder = VisualizationBuilder(
+                research_data_dir=research_data_dir,
+                output_dir=output_dir
+            )
+
+            return builder.generate_all()
+
+        except ImportError:
+            print("Warning: visualization module not available")
+            return {}
+        except Exception as e:
+            print(f"Warning: Failed to generate visualizations: {e}")
+            return {}
+
     def format_performance_section(self, metrics: Dict[str, Any]) -> str:
         """Format performance analysis section"""
         total_tokens = metrics.get("total_tokens", 0)
@@ -334,7 +419,9 @@ Research → Custom orchestration with parallel subagents
         topic_en: str,
         topic_cn: str,
         findings: Dict[str, Any],
-        output_path: str = "research_output"
+        output_path: str = "research_output",
+        visualizations: Optional[Dict[str, str]] = None,
+        research_data_dir: str = "research_data"
     ) -> str:
         """
         Generate complete markdown report
@@ -344,6 +431,8 @@ Research → Custom orchestration with parallel subagents
             topic_cn: Topic in Chinese
             findings: Research findings data
             output_path: Output directory path
+            visualizations: Pre-generated visualization embed codes
+            research_data_dir: Directory for research data (to generate visualizations)
 
         Returns:
             Path to generated report
@@ -351,6 +440,14 @@ Research → Custom orchestration with parallel subagents
         # Create output directory
         output_dir = Path(output_path)
         output_dir.mkdir(exist_ok=True)
+
+        # Generate visualizations if not provided
+        if visualizations is None:
+            viz_output_dir = output_dir / "visualizations"
+            visualizations = self.generate_visualizations(
+                research_data_dir=research_data_dir,
+                output_dir=str(viz_output_dir)
+            )
 
         # Prepare template variables
         session_id = findings.get("session_id", "unknown")[:8]
@@ -369,6 +466,8 @@ Research → Custom orchestration with parallel subagents
         open_source_ecosystem = self.format_github_section(github_projects)
         community_perspectives = self.format_community_section(community_discussions)
         performance_analysis = self.format_performance_section(performance_metrics)
+        visualization_section = self.format_visualization_section(visualizations)
+        visualization_embeds = ""  # Already included in visualization_section
 
         # Format template
         report_content = self.template.format(
@@ -385,6 +484,8 @@ Research → Custom orchestration with parallel subagents
             sota_works=academic_landscape,
             survey_papers="",
             citation_network="",
+            visualization_section=visualization_section,
+            visualization_embeds=visualization_embeds,
             open_source_ecosystem=open_source_ecosystem,
             technology_factions="",
             architecture_patterns="",

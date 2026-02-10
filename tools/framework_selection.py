@@ -499,12 +499,12 @@ class MCPDynamicSelector:
                 score += 5
 
             # Content extraction
-            if any(kw in query_lower for kw ["article", "blog", "content", "read"]):
+            if any(kw in query_lower for kw in ["article", "blog", "content", "read"]):
                 if use_case == "content_extraction":
                     score += 8
 
             # Multimodal
-            if any(kw in query_lower for kw ["image", "chart", "screenshot", "diagram"]):
+            if any(kw in query_lower for kw in ["image", "chart", "screenshot", "diagram"]):
                 if use_case == "multimodal_analysis":
                     score += 10
 

@@ -18,6 +18,11 @@ import json
 from pathlib import Path
 from datetime import datetime
 from collections import defaultdict
+import sys
+import os
+
+# Add parent directory to path for imports
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 try:
     import networkx as nx
@@ -98,7 +103,17 @@ class SemanticMemory:
     - Concepts connected by co-occurrence
     """
 
-    def __init__(self, use_networkx: bool = True):
+    def __init__(self, use_networkx: bool = True, output_dir: str = "research_output/visualizations"):
+        """
+        Initialize semantic memory.
+
+        Args:
+            use_networkx: Use NetworkX for graph operations (requires networkx)
+            output_dir: Directory for visualization outputs
+        """
+        self.use_networkx = use_networkx and NETWORKX_AVAILABLE
+        self.output_dir = Path(output_dir)
+        self.output_dir.mkdir(parents=True, exist_ok=True)
         """
         Initialize semantic memory.
 
@@ -524,6 +539,273 @@ class SemanticMemory:
             memory.add_edge(edge)
 
         return memory
+
+    def to_mermaid(self) -> str:
+        """
+        Generate Mermaid diagram string from graph.
+
+        Returns:
+            Mermaid diagram string for markdown embedding
+        """
+        lines = ["graph TD"]
+
+        # Add nodes by type
+        for node_id, node in self._nodes.items():
+            label = node.attributes.get("title", node.attributes.get("name", node_id))
+            label = label.replace('"', "'")[:40]  # Truncate and escape
+            safe_id = node_id.replace("-", "_").replace("/", "_")[:20]
+
+            # Style by node type
+            if node.type == NodeType.ACADEMIC_PAPER:
+                type_cat = node.attributes.get("type_category", "sota")
+                if type_cat == "root":
+                    lines.append(f'    {safe_id}["{label}"]:::rootPaper')
+                elif type_cat == "survey":
+                    lines.append(f'    {safe_id}["{label}"]:::surveyPaper')
+                else:
+                    lines.append(f'    {safe_id}["{label}"]:::sotaPaper')
+            elif node.type == NodeType.GITHUB_PROJECT:
+                lines.append(f'    {safe_id}["{label}"]:::repo')
+            elif node.type == NodeType.COMMUNITY_DISCUSSION:
+                lines.append(f'    {safe_id}["{label}"]:::community')
+            else:
+                lines.append(f'    {safe_id}["{label}"]')
+
+        # Add edges
+        for edge in self._edges:
+            source = edge.source.replace("-", "_").replace("/", "_")[:20]
+            target = edge.target.replace("-", "_").replace("/", "_")[:20]
+
+            if edge.type == EdgeType.CITES:
+                lines.append(f'    {source} -->|cites| {target}')
+            elif edge.type == EdgeType.IMPLEMENTS:
+                lines.append(f'    {source} -->|implements| {target}')
+            elif edge.type == EdgeType.DISCUSSES:
+                lines.append(f'    {source} -->|discusses| {target}')
+            else:
+                lines.append(f'    {source} --> {target}')
+
+        # Add style definitions
+        lines.append("""
+    classDef rootPaper fill:#e74c3c,stroke:#c0392b,stroke-width:2px,color:#fff
+    classDef sotaPaper fill:#3498db,stroke:#2980b9,stroke-width:2px,color:#fff
+    classDef surveyPaper fill:#f39c12,stroke:#e67e22,stroke-width:2px,color:#fff
+    classDef repo fill:#2ecc71,stroke:#27ae60,stroke-width:2px,color:#fff
+    classDef community fill:#e67e22,stroke:#d35400,stroke-width:2px,color:#fff
+""")
+
+        return "\n".join(lines)
+
+    def export_graphml(self, filepath: str) -> None:
+        """
+        Export graph to GraphML format (Gephi compatible).
+
+        Args:
+            filepath: Output file path
+        """
+        if not self.use_networkx:
+            raise RuntimeError("NetworkX required for GraphML export")
+
+        # Convert to undirected for Gephi compatibility (optional)
+        G = self.graph.to_undirected() if filepath.endswith(".graphml") else self.graph
+
+        nx.write_graphml(G, filepath)
+
+    def export_gexf(self, filepath: str) -> None:
+        """
+        Export graph to GEXF format (Gephi compatible).
+
+        Args:
+            filepath: Output file path
+        """
+        if not self.use_networkx:
+            raise RuntimeError("NetworkX required for GEXF export")
+
+        nx.write_gexf(self.graph, filepath)
+
+    def visualize(
+        self,
+        output_path: str = "",
+        format: str = "html",
+        height: str = "600px",
+        width: str = "100%"
+    ) -> str:
+        """
+        Render graph visualization to file.
+
+        Args:
+            output_path: Output file path (default: auto-generated)
+            format: Output format (html, png, svg)
+            height: Height for HTML output
+            width: Width for HTML output
+
+        Returns:
+            Path to generated file
+        """
+        if not self.use_networkx:
+            raise RuntimeError("NetworkX required for visualization")
+
+        # Generate output path if not provided
+        if not output_path:
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            output_path = str(self.output_dir / f"graph_{timestamp}.{format}")
+
+        output_path = Path(output_path)
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+
+        if format == "html":
+            return self._render_html(str(output_path), height, width)
+        elif format in ("png", "svg"):
+            return self._render_image(str(output_path), format)
+        elif format == "mermaid":
+            mermaid_content = self.to_mermaid()
+            with open(output_path, 'w') as f:
+                f.write(mermaid_content)
+            return str(output_path)
+        else:
+            raise ValueError(f"Unsupported format: {format}")
+
+    def _render_html(self, output_path: str, height: str, width: str) -> str:
+        """Render interactive HTML visualization"""
+        try:
+            from pyvis.network import Network
+
+            net = Network(
+                height=height,
+                width=width,
+                bgcolor="#ffffff",
+                font_color="#000000",
+                directed=True
+            )
+
+            # Configure for hierarchical layout
+            net.set_options("""
+            {
+                "layout": {
+                    "hierarchical": {
+                        "enabled": true,
+                        "direction": "UD",
+                        "sortMethod": "directed"
+                    }
+                },
+                "physics": {
+                    "enabled": false
+                }
+            }
+            """)
+
+            # Add nodes
+            for node_id, node_data in self.graph.nodes(data=True):
+                node_type = node_data.get("node_type", "unknown")
+                color = self._get_color_for_type(node_type)
+                label = node_data.get("title", node_data.get("name", node_id))[:30]
+
+                net.add_node(
+                    node_id,
+                    label=label,
+                    title=node_data.get("title", node_id),
+                    color=color,
+                    shape="dot" if node_type == "academic_paper" else "square",
+                    group=node_type
+                )
+
+            # Add edges
+            for source, target, edge_data in self.graph.edges(data=True):
+                net.add_edge(source, target, label=edge_data.get("edge_type", ""))
+
+            net.save_graph(output_path)
+            return output_path
+
+        except ImportError:
+            # Fallback: export as Mermaid
+            fallback_path = output_path.replace(".html", "_fallback.mmd")
+            return self._render_mermaid_fallback(fallback_path)
+
+    def _render_image(self, output_path: str, format: str) -> str:
+        """Render static image using matplotlib"""
+        try:
+            import matplotlib.pyplot as plt
+
+            fig, ax = plt.subplots(figsize=(14, 10))
+
+            # Use hierarchical layout
+            try:
+                pos = nx.nx_agraph.graphviz_layout(self.graph, prog='dot')
+            except:
+                pos = nx.spring_layout(self.graph, k=2, iterations=50)
+
+            # Group nodes by type
+            node_types = {}
+            for node, data in self.graph.nodes(data=True):
+                node_type = data.get("node_type", "unknown")
+                node_types.setdefault(node_type, []).append(node)
+
+            # Draw nodes by type
+            for node_type, nodes in node_types.items():
+                nx.draw_networkx_nodes(
+                    self.graph, pos, nodelist=nodes,
+                    node_color=self._get_color_for_type(node_type),
+                    label=node_type.replace("_", " ").title(),
+                    node_size=300, ax=ax
+                )
+
+            # Draw edges
+            nx.draw_networkx_edges(self.graph, pos, alpha=0.4, arrows=True, ax=ax)
+
+            # Draw labels
+            labels = {n: d.get("title", d.get("name", n))[:15]
+                     for n, d in self.graph.nodes(data=True)}
+            nx.draw_networkx_labels(self.graph, pos, labels, font_size=8, ax=ax)
+
+            ax.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
+            ax.set_title("Knowledge Graph Visualization")
+            plt.axis('off')
+
+            fig.savefig(output_path, format=format, dpi=150, bbox_inches='tight')
+            plt.close()
+
+            return output_path
+
+        except ImportError:
+            raise RuntimeError("matplotlib required for image export")
+
+    def _render_mermaid_fallback(self, output_path: str) -> str:
+        """Generate Mermaid diagram as fallback"""
+        mermaid_content = self.to_mermaid()
+        with open(output_path, 'w') as f:
+            f.write(mermaid_content)
+        return output_path
+
+    def _get_color_for_type(self, node_type: str) -> str:
+        """Get color for node type"""
+        colors = {
+            "academic_paper": "#3498db",  # Blue
+            "github_project": "#2ecc71",  # Green
+            "community_discussion": "#e67e22",  # Orange
+            "concept": "#9b59b6",  # Purple
+            "author": "#95a5a6",  # Gray
+            "framework": "#e74c3c"  # Red
+        }
+        return colors.get(node_type, "#95a5a6")
+
+    def to_html(
+        self,
+        output_path: str = "",
+        title: str = "Knowledge Graph",
+        height: str = "600px"
+    ) -> str:
+        """
+        Generate interactive HTML visualization.
+
+        Args:
+            output_path: Output file path
+            title: Graph title
+            height: iframe height
+
+        Returns:
+            Path to generated HTML file
+        """
+        return self.visualize(output_path, format="html", height=height)
 
 
 class CitationNetwork:

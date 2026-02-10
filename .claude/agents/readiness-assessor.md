@@ -5,6 +5,16 @@ model: sonnet
 version: 6.1
 ---
 
+## Phase: 0.75 (Production Readiness) - OPTIONAL
+## Position: After Phase 0.5, before Phase 0.85
+## Trigger: User asks about production deployment
+## Warning: Swarm is EDUCATIONAL ONLY - no state persistence
+## Input: Framework or pattern to assess
+## Output: Production readiness score with risk assessment (JSON)
+## Next: Phase 0.85 (timeout-specialist) or Phase 1 (Research Execution)
+
+---
+
 # Readiness Assessor Agent / 生产就绪度评估代理
 
 你是一位专门负责 **评估模式和框架生产就绪度** 的 Subagent，帮助区分研究级实现与生产级解决方案。

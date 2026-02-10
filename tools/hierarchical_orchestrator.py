@@ -21,6 +21,7 @@ from enum import Enum
 import asyncio
 from abc import ABC, abstractmethod
 import uuid
+import json
 from datetime import datetime
 
 from memory_system import MAGMAMemory

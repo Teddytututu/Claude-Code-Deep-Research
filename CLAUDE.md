@@ -35,6 +35,110 @@
 
 ---
 
+## Agent Knowledge Access Pattern / Agent 知识访问模式
+
+### @knowledge 引用 / @knowledge References
+
+每个 Agent 通过 `@knowledge` 指令访问知识库文件：
+
+| Agent | Layer | 知识库文件 | 用途 |
+|-------|-------|-----------|------|
+| `performance-predictor` | 1 (Meta-Orchestrator) | hierarchical_orchestration.md, performance_metrics.md, framework_selection.md | 成本效益分析 |
+| `framework-selector` | 1 (Meta-Orchestrator) | hierarchical_orchestration.md, framework_selection.md, orchestration_patterns.md | 框架选择逻辑 |
+| `mcp-coordinator` | 1 (Meta-Orchestrator) | hierarchical_orchestration.md, observability_patterns.md | MCP 工具优化 |
+| `academic-researcher` | 2 (Domain Coordinator) | hierarchical_orchestration.md, memory_system.md, memory_graph.md, cross_domain_tracker.md | 学术论文研究 + MAGMAMemory + 跨域提取 |
+| `github-watcher` | 2 (Domain Coordinator) | hierarchical_orchestration.md, memory_system.md, memory_graph.md, cross_domain_tracker.md | GitHub 生态调研 + MAGMAMemory + 跨域提取 |
+| `community-listener` | 2 (Domain Coordinator) | hierarchical_orchestration.md, memory_system.md, memory_graph.md, cross_domain_tracker.md | 社区讨论监听 + MAGMAMemory + 跨域提取 |
+| `cross-domain-tracker` | - | cross_domain_tracker.md, memory_graph.md, memory_system.md | 跨域关系分析 (Phase 1.5) |
+| `literature-analyzer` | - | logic_analysis.md, research_state.md, memory_graph.md, memory_system.md, cross_domain_tracker.md | 逻辑关系分析 + 引用网络 + 跨域综合 |
+| `deep-research-report-writer` | - | quality_checklist.md, report_templates.md, memory_graph.md, memory_system.md, cross_domain_tracker.md | 综合报告生成 + 引用图谱 + 跨域洞察 |
+| `literature-review-writer` | - | quality_checklist.md, report_templates.md, memory_graph.md, memory_system.md, cross_domain_tracker.md | 文献综述生成 + 相关论文 + 实现缺口 |
+| `visualization-generator` | - | visualization_patterns.md, memory_graph.md, memory_system.md, cross_domain_tracker.md | 可视化生成 + 图谱可视化 + 跨域图 |
+| `link-validator` | - | quality_checklist.md, report_templates.md | 链接验证 |
+| `timeout-specialist` | - | resilience_patterns.md | 超时和弹性模式 |
+| `task_handle` | - | report_templates.md, quality_checklist.md | 定制任务输出 |
+| `handoff-designer` | - | (inline documentation) | Handoff 模式设计 |
+| `readiness-assessor` | - | (inline documentation) | 生产就绪度评估 |
+
+### CLI 工具调用 / CLI Tool Invocations
+
+Agents 通过 Bash 工具调用 Python 模块进行量化分析：
+
+```bash
+# Framework selection
+python "tools\framework_selection.py" --recommend
+
+# Quality validation
+python "tools\quality_gate.py" --findings research_data/academic_research_output.json
+
+# Report formatting
+python "tools\output_formatter.py" --comprehensive
+
+# Memory Graph CLI (NEW - v4.0)
+python "tools\memory_graph_cli.py" --build
+python "tools\memory_graph_cli.py" --query <arxiv_id>
+python "tools\memory_graph_cli.py" --visualize --format html
+python "tools\memory_graph_cli.py" --stats
+
+# Memory System CLI (NEW - v9.0)
+python "tools\memory_system.py" --save-graph research_data/semantic_graph.json
+python "tools\memory_system.py" --migrate research_data/old_state.json --output research_data
+
+# Batch visualization generation (NEW)
+python "tools\generate_visualizations.py"
+
+# Visualization
+python "tools\visualization.py" --data-dir research_data --output-dir research_output/visualizations
+
+# Cross-Domain Tracking (NEW - v2.0)
+python "tools\cross_domain_tracker.py" --load-data research_data --stats
+python "tools\cross_domain_tracker.py" --load-data research_data --bridging --min-domains 2
+python "tools\cross_domain_tracker.py" --load-data research_data --save cross_domain_tracking_output.json
+python "tools\cross_domain_tracker.py" --semantic-query --bridging
+
+# Observability metrics
+python "tools\observability.py" --metrics
+
+# Resilience testing
+python "tools\resilience.py" --test-retry
+```
+
+### Knowledge Files Reference / 知识库文件参考
+
+| Knowledge File | Purpose | Status |
+|----------------|---------|--------|
+| `framework_selection.md` | Framework decision logic | ✅ Active |
+| `orchestration_patterns.md` | Multi-agent coordination patterns | ✅ Active |
+| `quality_checklist.md` | Quality validation criteria | ✅ Active |
+| `report_templates.md` | Output format specifications | ✅ Active |
+| `observability_patterns.md` | Metrics and monitoring patterns | ✅ Active |
+| `resilience_patterns.md` | Retry and recovery mechanisms | ✅ Active |
+| `visualization_patterns.md` | Visualization generation patterns | ✅ Active |
+| `logic_analysis.md` | Citation and logic analysis | ✅ Active |
+| `research_state.md` | State management patterns | ✅ Active |
+| `performance_metrics.md` | Cost-benefit analysis data | ✅ Active |
+| `hierarchical_orchestration.md` | 3-layer orchestration | ✅ Active | All agents |
+| `memory_graph.md` | Semantic knowledge graph | ✅ Active | All agents (via memory_system) |
+| `memory_system.md` | MAGMA memory architecture | ✅ Active | Research subagents, report writers |
+| `cross_domain_tracker.md` | Cross-domain tracking | ✅ Active | cross-domain-tracker, literature-analyzer |
+| `hybrid_retriever.md` | GraphRAG retrieval | 📋 Planned |
+| `knowledge_template.md` | Template for new knowledge files | 📝 Template |
+
+### 知识库文件位置 / Knowledge File Locations
+
+**Knowledge files** (`.claude/knowledge/*.md`): 16 files
+- 决策逻辑、模式库、检查清单、模板
+- **NEW**: memory_graph.md, memory_system.md (Active - MAGMA v9.0)
+
+**Python tools** (`tools/*.py`): 16 files
+- 可执行模块、量化分析、可视化生成
+- **NEW**: memory_graph_cli.py, generate_visualizations.py
+
+**Agent files** (`.claude/agents/*.md`): 15 files
+- Subagent 配置、@knowledge 引用、CLI 工具调用
+
+---
+
 # PART I: DECISION FRAMEWORK / 决策框架
 
 ## Performance-Aware Resource Allocation / 性能感知资源分配
@@ -370,43 +474,178 @@ def transfer_to_academic_agent():
 
 ---
 
-## Memory System / 记忆系统
+## Hierarchical Orchestration / 三层编排架构
 
-- **Short-term**: Session context (200k tokens)
-- **Long-term**: Research data persisted to `research_data/*.json`
-- **Cross-session**: `research_output/*.md` for synthesized reports
-- **State management**: ResearchStateManager with checkpoint/resume
+**Active Engine**: `tools/hierarchical_orchestrator.py` (v9.0)
+
+**基于**: [AgentOrchestra: A Hierarchical Multi-Agent Framework](https://arxiv.org/abs/2506.12508) [arXiv:2506.12508](https://arxiv.org/abs/2506.12508)
+
+### Three Layers / 三层结构
+
+| Layer | Name | Agents | Responsibilities |
+|-------|------|--------|------------------|
+| **1** | Meta-Orchestrator | performance-predictor, framework-selector, mcp-coordinator | Query analysis, resource allocation, framework selection |
+| **2** | Domain Coordinators | academic-researcher, github-watcher, community-listener | Task decomposition, worker assignment, result aggregation |
+| **3** | Worker Executors | MCP tool invocations | Specialized execution (paper search, code exploration, discussion monitoring) |
+
+### TEA Protocol / TEA 协议
+
+1. **Task Decomposition**: Domain coordinators break tasks into worker tasks
+2. **Worker Assignment**: Assign to specialized executors (MCP tools)
+3. **Result Aggregation**: Combine worker results at domain level
+
+### Workflow Flow / 工作流
+
+```
+User Query
+    ↓
+┌─────────────────────────────────────────────────────────┐
+│ LAYER 1: Meta-Orchestrator                               │
+│ - performance-predictor: 45% threshold rule              │
+│ - framework-selector: "AutoGen快、CrewAI稳、LangGraph强" │
+│ - mcp-coordinator: 5-6 MCPs, <80 tools                   │
+│ → Decision: Which domains to activate?                   │
+└────────────────────────────┬────────────────────────────┘
+                     │
+        ┌────────────┼────────────┐
+        ▼            ▼            ▼
+┌─────────────┐ ┌─────────┐ ┌──────────┐
+│ LAYER 2:    │ │LAYER 2: │ │LAYER 2:  │
+│ AcademicLead│ │GitHubLead│ │Community │
+│ (Task call) │ │(Task cal)│ │Lead      │
+└─────────────┘ └─────────┘ └──────────┘
+                     │
+        ┌────────────┼────────────┐
+        ▼            ▼            ▼
+┌─────────────┐ ┌─────────┐ ┌──────────┐
+│ LAYER 3:    │ │LAYER 3: │ │LAYER 3:  │
+│ MCP ArXiv   │ │MCP zread │ │MCP webR  │
+│ tools       │ │ tools   │ │ tools    │
+└─────────────┘ └─────────┘ └──────────┘
+```
+
+---
+
+## Memory System Integration / 记忆系统集成
+
+**Active Engine**: `tools/memory_system.py` (MAGMA v9.0)
+
+**Based on**: [MAGMA: Multi-Graph Agentic Memory Architecture](https://arxiv.org/abs/2601.03236) [arXiv:2601.03236](https://arxiv.org/abs/2601.03236)
+
+### Three-Layer Memory Architecture / 三层记忆架构
+
+| Layer | Component | File | Purpose |
+|-------|-----------|------|---------|
+| **1** | SemanticMemory | `memory_graph.py` | Knowledge graph (papers, projects, concepts) |
+| **2** | TemporalMemory | `memory_system.py` | Time-series tracking with provenance |
+| **3** | EpisodicMemory | `memory_system.py` | Context windows for sessions |
+
+### Integration Points / 集成点
+
+**During Research Execution**:
+```python
+# Phase 1: Start session
+from memory_system import MAGMAMemory
+memory = MAGMAMemory(storage_dir="research_data")
+session_id = memory.start_session(query)
+
+# Phase 2: After each subagent completes
+memory.add_paper_finding(paper_data, "academic-researcher")
+memory.add_project_finding(project_data, "github-watcher")
+memory.add_discussion_finding(discussion_data, "community-listener")
+
+# Phase 3: Record checkpoints
+memory.record_checkpoint("phase_1_complete", {"papers_found": 15})
+
+# Phase 4: End session
+summary = memory.end_session()
+```
+
+**During Report Generation**:
+```python
+# Generate citation network visualization
+citation_graph = memory.semantic.to_mermaid()
+
+# Generate HTML visualization
+html_path = memory.semantic.visualize(format="html")
+
+# Get related papers for recommendations
+related = memory.semantic.find_related_papers(arxiv_id, top_k=5)
+```
+
+### CLI Usage / 命令行使用
+
+```bash
+# Build graph from existing research data
+python "tools\memory_graph_cli.py" --build
+
+# Query related papers
+python "tools\memory_graph_cli.py" --query 2501.03236
+
+# Generate visualization
+python "tools\memory_graph_cli.py" --visualize --format html
+
+# Show graph statistics
+python "tools\memory_graph_cli.py" --stats
+
+# Batch generate all visualizations
+python "tools\generate_visualizations.py"
+```
+
+### Memory Types / 记忆类型
+
+| Type | Description | Storage | Retrieval |
+|------|-------------|---------|-----------|
+| **Semantic** | Knowledge graph of entities and relationships | `research_data/semantic_graph.json` | Graph queries, PageRank, path finding |
+| **Temporal** | Time-series of findings and evolution | `research_data/temporal/*.json` | Provenance tracking, checkpoint recovery |
+| **Episodic** | Session context windows | In-memory (session-scoped) | Similar session search |
 
 ---
 
 ## Agent Inventory / 代理清单
 
-### Decision-Support Agents (6) / 决策支持代理
+### Layer 1: Meta-Orchestrator Agents (3) / 元编排代理
 
 | Agent | Purpose | When to Use |
 |-------|---------|-------------|
-| **performance-predictor** | 成本效益分析 | 所有深度研究请求的第一步 |
+| **performance-predictor** | 成本效益分析 | 所有深度研究请求的第一步 (45% threshold rule) |
 | **framework-selector** | 框架推荐 | 需要选择技术框架时 |
-| **mcp-coordinator** | MCP 优化 | 所有 multi-agent 任务 |
+| **mcp-coordinator** | MCP 优化 | 所有 multi-agent 任务 (5-6 MCPs, <80 tools) |
+
+### Layer 2: Domain Coordinator Agents (3) / 域协调代理
+
+| Agent | Domain | When to Use |
+|--------|--------|-------------|
+| **academic-researcher** | Academic Research | 需要 ArXiv 论文、引用网络 |
+| **github-watcher** | GitHub Analysis | 需要 GitHub 项目、代码实现 |
+| **community-listener** | Community Listening | 需要实践反馈、社区共识 |
+
+### Layer 3: Worker Executors (MCP Tools) / 工作执行器
+
+| Worker | Tools | Purpose |
+|--------|-------|---------|
+| PaperSearcher | `mcp__arxiv-mcp-server__*` | Academic paper research |
+| CodeExplorer | `mcp__zread__*` | GitHub analysis |
+| DiscussionMonitor | `mcp__web-reader__*`, `mcp__web-search-prime__*` | Community monitoring |
+
+### Other Decision-Support Agents (3) / 其他决策支持代理
+
+| Agent | Purpose | When to Use |
+|-------|---------|-------------|
 | **handoff-designer** | Handoff 模式 | 设计 agent 协调时 |
 | **readiness-assessor** | 生产就绪度 | 评估框架/模式用于生产时 |
 | **timeout-specialist** | 超时机制专家 | 长运行流程、超时预算分配 |
 
-### Research Subagents (3) / 研究子代理
-
-| Agent | Purpose | When to Use |
-|--------|---------|-------------|
-| **academic-researcher** | 学术论文 | 需要 ArXiv 论文、引用网络 |
-| **github-watcher** | 开源生态 | 需要 GitHub 项目、代码实现 |
-| **community-listener** | 社区讨论 | 需要实践反馈、社区共识 |
-
-### Report Synthesis Agents (3) / 报告合成代理
+### Report Synthesis Agents (6) / 报告合成代理
 
 | Agent | Purpose | When to Use |
 |--------|---------|-------------|
 | **literature-analyzer** | 逻辑分析 | 研究数据完成后，进行逻辑关系分析 |
 | **deep-research-report-writer** | 综合报告 | 生成 Gemini Deep Research 格式报告（全面覆盖） |
 | **literature-review-writer** | 文献综述 | 生成学术文献综述报告（逻辑驱动） |
+| **link-validator** | 链接验证 | 报告完成后自动验证所有链接（Phase 2d） |
+| **visualization-generator** | 可视化生成 | 生成引用网络、跨域关系图 |
+| **task_handle** | 定制任务 | 完成用户指定的定制输出（博客、幻灯片、代码示例等） |
 
 ---
 
@@ -467,6 +706,23 @@ Example: "给我1小时"
 ```
 深度研究 [topic]，使用 LangGraph
 Research [topic], framework: AutoGen
+```
+
+### With Custom Task Output / 指定定制输出
+
+**Option 1: In Initial Query** (在初始查询中指定)
+```
+深度研究 [topic]，最后帮我写一篇博客文章
+Research [topic], then create a summary slide deck
+研究 [topic]，完成后生成代码示例清单
+深度研究 [topic]，最后输出为JSON格式给API使用
+```
+
+**Option 2: After Reports Complete** (报告完成后指定)
+```
+现在基于这些研究结果，帮我完成：[task description]
+基于研究报告，写一份技术提案
+From the research, create a comparison table
 ```
 
 ---
@@ -561,8 +817,15 @@ Research [topic], framework: AutoGen
         │ Research Complete  │
         ↓                   ↓
 ┌───────────────────────────────────────┐
-│ Phase 2a: Logic Analysis (NEW)        │
+│ Phase 1.5: Cross-Domain Tracking (NEW)│
+│ Agent: cross-domain-tracker           │
+│ 输出: cross_domain_tracking_output.json│
+└───────────────────┬───────────────────┘
+                    │
+┌───────────────────┴───────────────────┐
+│ Phase 2a: Logic Analysis              │
 │ Agent: literature-analyzer            │
+│ 输入: cross_domain_tracking_output.json│
 │ 输出: logic_analysis.json             │
 └───────────────────┬───────────────────┘
                     │
@@ -572,8 +835,25 @@ Research [topic], framework: AutoGen
 │ │  → comprehensive_report.md          │
 │ └─ literature-review-writer           │
 │     → literature_review.md            │
+└───────────────────┬───────────────────┘
+                    │
+┌───────────────────┴───────────────────┐
+│ Phase 2d: Link Validation (NEW)       │
+│ Agent: link-validator                  │
+│ - Validate all links in both reports   │
+│ - Check via webReader                 │
+│ - Output: link_validation_output.json │
+└───────────────────┬───────────────────┘
+                    │
+┌───────────────────┴───────────────────┐
+│ Phase 2e: Task Handler (Optional)     │
+│ Agent: task_handle                    │
+│ - 接收用户特定任务需求                  │
+│ - 基于所有研究结果完成定制输出           │
 └───────────────────────────────────────┘
 ```
+
+**Important**: Phase 1.5 (Cross-Domain Tracking) runs after Phase 1, before Phase 2a. Phase 2d (Link Validation) runs automatically after Phase 2b.
 
 ---
 
@@ -787,6 +1067,7 @@ INPUT DATA:
 - Academic research: research_data/academic_research_output.json
 - GitHub research: research_data/github_research_output.json
 - Community research: research_data/community_research_output.json
+- Cross-domain tracking: research_data/cross_domain_tracking_output.json (NEW v2.3)
 
 OUTPUT: research_data/logic_analysis.json
 
@@ -795,7 +1076,52 @@ See .claude/agents/literature-analyzer.md for complete specification.
 )
 ```
 
-### Phase 2b: Dual Report Synthesis / 双报告合成
+### Phase 1.5: Cross-Domain Tracking / 跨域关系追踪 (NEW)
+
+**分析学术论文、GitHub 项目和社区讨论之间的跨域关系:**
+
+```python
+Task(
+    subagent_type="cross-domain-tracker",
+    prompt=f"""
+Analyze cross-domain relationships between research domains.
+
+INPUT DATA:
+- Academic research: research_data/academic_research_output.json
+- GitHub research: research_data/github_research_output.json
+- Community research: research_data/community_research_output.json
+
+OUTPUT: research_data/cross_domain_tracking_output.json
+
+ANALYSIS TYPES:
+- Paper → Repo (implements): Papers implemented by GitHub projects
+- Paper → Community (validates): Papers discussed in community
+- Repo → Community (discusses): Repos discussed in community
+
+IDENTIFY:
+- Bridging entities (connect 2+ domains)
+- Implementation gaps (papers without repos)
+- Community validation gaps (papers without discussions)
+- Relationship clusters
+
+See .claude/agents/cross-domain-tracker.md for complete specification.
+"""
+)
+```
+
+**输出格式**:
+```json
+{
+  "tracking_metadata": { ... },
+  "cross_domain_statistics": { ... },
+  "bridging_entities": [ ... ],
+  "relationship_clusters": [ ... ],
+  "cross_domain_insights": [ ... ],
+  "visualization_data": { ... }
+}
+```
+
+### Phase 2a: Logic Analysis / 逻辑分析 (Updated for v2.3)
 
 **Report 1: Comprehensive Report (Existing)**
 
@@ -846,6 +1172,89 @@ See .claude/agents/literature-review-writer.md for complete specification.
 
 ---
 
+### Phase 2d: Link Validation / 链接验证 (Automatic)
+
+**自动使用 `link-validator` agent 验证报告中的所有链接:**
+
+```python
+Task(
+    subagent_type="link-validator",
+    prompt=f"""
+Validate all links in the generated research reports.
+
+INPUT FILES:
+- research_output/{sanitized_topic}_comprehensive_report.md
+- research_output/{sanitized_topic}_literature_review.md
+
+REQUIREMENTS:
+- Extract all Markdown links [text](url)
+- Validate each URL via webReader
+- Categorize by type (arxiv, github, doi, other)
+- Report status (valid, broken, timeout)
+
+OUTPUT: research_data/link_validation_output.json
+
+See .claude/agents/link-validator.md for complete specification.
+"""
+)
+```
+
+**验证输出格式**:
+```json
+{
+  "validation_id": "link_validation_YYYYMMDD_HHMMSS",
+  "total_links_found": 45,
+  "valid_links": 42,
+  "broken_links": 2,
+  "timeout_links": 1,
+  "validation_rate": 93.33,
+  "broken_links_detail": [...]
+}
+```
+
+**重要**: 链接验证是自动执行的，不修改原报告。如发现问题需手动修复。
+
+---
+
+### Phase 2e: Task Handler / 定制任务处理 (Optional)
+
+**当用户指定定制任务时使用 `task_handle` agent:**
+
+```python
+# 解析用户任务需求
+user_task = parse_user_task(original_query)
+
+IF user_task EXISTS:
+    Task(
+        subagent_type="task_handle",
+        prompt=f"""
+Complete the following task based on research results:
+
+USER TASK: {user_task}
+INPUT_REPORTS:
+- research_output/{sanitized_topic}_comprehensive_report.md
+- research_output/{sanitized_topic}_literature_review.md
+RESEARCH_DATA: research_data/*.json
+
+OUTPUT: research_output/{sanitized_topic}_{task_type}.md
+
+See .claude/agents/task_handle.md for complete specification.
+"""
+    )
+```
+
+**支持的输出格式**:
+- 博客文章 (Blog Post)
+- 幻灯片大纲 (Slide Deck)
+- 代码示例 (Code Examples)
+- 摘要 (Summary)
+- JSON 格式 (JSON for API)
+- 对比表 (Comparison Table)
+- 技术提案 (Technical Proposal)
+- 自定义格式 (Custom)
+
+---
+
 ## Workflow Validation / 工作流验证
 
 ### Correct vs Incorrect Workflow / 正确与错误工作流
@@ -878,6 +1287,10 @@ See .claude/agents/literature-review-writer.md for complete specification.
 7. literature-analyzer: 逻辑分析 (NEW)
       ↓
 8. deep-research-report-writer + literature-review-writer: 双报告合成 (NEW)
+      ↓
+9. link-validator: 链接验证 (自动，报告损坏链接) (NEW)
+      ↓
+10. task_handle: 定制任务输出 (如用户指定) (NEW)
 ```
 
 ---
@@ -897,12 +1310,25 @@ See .claude/agents/literature-review-writer.md for complete specification.
 - ❌ Format citations manually → Report writers handle all citation formatting
 - ❌ Create bilingual content → Report writers generate Chinese + English output
 
+**Custom Task Completion** (委托给 task_handle agent):
+- ❌ Write blog posts, slide decks, code examples → Use `task_handle` agent
+- ❌ Create JSON output, comparison tables, proposals → Use `task_handle` agent
+- ❌ Complete any custom format output → Use `task_handle` agent
+
+**Link Validation** (委托给 link-validator agent):
+- ❌ Validate report links manually → Use `link-validator` agent
+- ❌ Check URL accessibility → link-validator uses webReader
+- ❌ Fix broken links automatically → Report only, manual fix required
+
 **CLAUDE.md ROLE** (编排者职责):
 - ✅ Analyze user query and determine if multi-agent is needed
 - ✅ Coordinate decision-support agents (performance-predictor, framework-selector, mcp-coordinator)
 - ✅ Deploy research subagents in parallel with proper task specifications
 - ✅ Coordinate logic analysis before report generation (Phase 2a)
 - ✅ Deploy dual report writers in parallel (Phase 2b)
+- ✅ Deploy link-validator agent automatically after reports (Phase 2d)
+- ✅ Review link validation results and report broken links to user
+- ✅ Deploy task_handle agent for custom output (Phase 2e, optional)
 - ✅ Verify both reports' quality and deliver results to user
 - ✅ Handle error recovery and workflow coordination
 
@@ -935,13 +1361,35 @@ After both report writer agents complete:
    - [ ] Research gaps and open questions identified
    ```
 
-3. **Deliver to user**
+3. **Review link validation results** (automatic Phase 2d)
+   ```
+   Check:
+   - [ ] research_data/link_validation_output.json exists
+   - [ ] All links validated (100% coverage)
+   - [ ] Validation rate recorded
+   - [ ] If broken_links > 0: Report details to user
+   ```
+
+4. **Deliver to user**
    ```
    Provide:
    - Comprehensive report: {topic}_comprehensive_report.md
    - Literature review: {topic}_literature_review.md
+   - Link validation summary (if issues found)
+   - Custom task output: {topic}_{task_type}.md (if task_handle was used)
    - Summary of key findings from both reports
    - Data sources used (papers, repos, discussions)
+   ```
+
+**Optional Phase 2e: Task Handle Verification** (如果使用了 task_handle):
+
+4. **Verify custom task output** (if applicable)
+   ```
+   Check:
+   - [ ] research_output/{topic}_{task_type}.md exists
+   - [ ] Output format matches user requirements
+   - [ ] Content is based on research materials
+   - [ ] Sources are properly attributed
    ```
 
 ---
@@ -1056,6 +1504,23 @@ See `.claude/agents/literature-review-writer.md` for:
 - Logical connector usage
 - Quality checklists
 
+**Optional: Custom Task Output (Phase 2c)**
+
+See `.claude/agents/task_handle.md` for:
+- Flexible output formats (blog, slides, code examples, etc.)
+- Web reading capability for fresh content
+- Custom format generation based on user requirements
+
+**Supported Output Formats**:
+- Blog Posts / Articles
+- Slide Decks / Presentations
+- Code Examples / Tutorials
+- Summaries / Abstracts
+- JSON / API formats
+- Comparison Tables
+- Technical Proposals
+- Any custom format
+
 **CLAUDE.md ROLE**: Orchestrate the research workflow, delegate to specialized agents, and deliver the final reports. Do NOT manually write research reports.
 
 ---
@@ -1069,7 +1534,7 @@ See `.claude/agents/literature-review-writer.md` for:
 | `mcp__arxiv-mcp-server__read_paper` | 阅读论文 | 提取数学形式 |
 | `mcp__web-search-prime__webSearchPrime` | 网页搜索 | 补充来源 |
 | `mcp__zread__*` | GitHub 分析 | 开源调研 |
-| `mcp__web-reader__webReader` | 阅读讨论串 | 社区调研 |
+| `mcp__web-reader__webReader` | 阅读讨论串 / 链接验证 | 社区调研 / Phase 2d link validation |
 | `Task` | 创建 Subagent | 并行执行 |
 
 ---
@@ -1081,4 +1546,7 @@ See `.claude/agents/literature-review-writer.md` for:
 2. **框架选择**: "AutoGen快、CrewAI稳、LangGraph强" - 根据场景选择合适框架
 3. **编排优化**: 20-30 个 MCP 配置，每次启用 5-6 个，工具总数 <80
 4. **职责分离**: CLAUDE.md 编排，subagents 执行，report-writers 撰写
-5. **双输出系统**: 综合报告 + 文献综述，满足不同读者需求
+5. **记忆系统**: MAGMAMemory 自动保存研究发现，构建跨 session 引用网络
+6. **双输出系统**: 综合报告 + 文献综述，满足不同读者需求
+7. **链接验证**: link-validator agent 自动验证所有报告链接（Phase 2d）
+8. **定制输出**: task_handle agent 支持灵活的定制化输出格式

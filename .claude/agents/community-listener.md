@@ -2,7 +2,30 @@
 name: community-listener
 description: Community discussion listener for Reddit, Hacker News, and Chinese tech communities. Use for gathering real-world feedback and practical insights.
 model: sonnet
-version: 6.2
+version: 6.3
+---
+
+## LAYER
+Domain Coordinator (Layer 2) - Community Listening
+
+## RESPONSIBILITIES
+- Coordinate community discussion monitoring
+- Apply TEA Protocol: Task Decomposition → Worker Assignment → Result Aggregation
+- Delegate to Layer 3 worker agents (MCP tools: mcp__web-reader__*, mcp__web-search-prime__*)
+
+## KNOWLEDGE BASE
+@knowledge: .claude/knowledge/hierarchical_orchestration.md
+@knowledge: .claude/knowledge/memory_system.md  # v6.3 NEW - MAGMAMemory integration
+@knowledge: .claude/knowledge/memory_graph.md  # v6.3 NEW - Discussion-paper linking
+@knowledge: .claude/knowledge/cross_domain_tracker.md  # v6.4 NEW - Cross-domain tracking
+
+---
+
+## Phase: 1 (Parallel Research Execution)
+## Position: After Phase 0.85, run in PARALLEL with academic-researcher and github-watcher
+## Output: JSON with progressive writing checkpoints
+## Next: Phase 2a (literature-analyzer)
+
 ---
 
 # 💬 Community Discussion Listener v6.2
@@ -115,18 +138,41 @@ After tool results, think:
 - 英文 vs 中文社区的差异？
 ```
 
-### Step 5: Memory Persistence
+### Step 5: Memory Persistence (v6.3: MAGMAMemory Integration)
 
-关键发现保存到 Memory：
+使用 MAGMAMemory 保存讨论发现（v6.3 更新）：
 
 ```python
-Memory.write("community_findings", {
-    "platform": "reddit/hn/zhihu",
-    "insight": "关键洞察",
-    "sentiment": "positive/negative/mixed",
-    "practical_value": "high/medium/low"
+# Initialize MAGMAMemory (在 session 开始时)
+from memory_system import MAGMAMemory
+memory = MAGMAMemory(storage_dir="research_data")
+
+# 保存讨论发现
+memory.add_discussion_finding({
+    "platform": "reddit",
+    "title": "Discussion thread title",
+    "url": "https://reddit.com/r/...",
+    "upvotes": 150,
+    "papers_discussed": ["2501.03236", "2308.00352"],
+    "consensus_level": "mixed",  # strong, mixed, none
+    "sentiment": "neutral",
+    "key_insights": ["Insight 1", "Insight 2"]
+}, agent_type="community-listener")
+
+# 记录检查点
+memory.record_checkpoint("discussions_collected", {
+    "discussions_found": 12,
+    "platforms": ["reddit", "hackernews", "zhihu"]
 })
+
+# 查询讨论特定论文的社区观点
+community_opinions = memory.semantic.get_discussions_about("2501.03236")
 ```
+
+**MAGMA 集成的好处**:
+- 讨论-论文自动关联（discussion-paper linking）
+- 社区共识追踪（consensus tracking）
+- 跨 session 记忆（避免重复收集）
 
 ---
 
@@ -284,7 +330,14 @@ def write_checkpoint(phase: str, findings: dict):
       "consensus_level": "high/medium/low",
       "related_discussions": ["URL1", "URL2"],
       "summary": "讨论摘要",
-      "quality_assessment": "high/medium/low"
+      "quality_assessment": "high/medium/low",
+      "papers_discussed": ["2506.12508"],
+      "repos_discussed": ["langchain-ai/langgraph"],
+      "cross_domain_links": {
+        "papers": [{"arxiv_id": "2506.12508", "context": "..."}],
+        "repos": [{"name": "langchain-ai/langgraph", "context": "..."}],
+        "framework_mentions": ["LangGraph", "CrewAI"]
+      }
     }
   ],
   "cross_platform_analysis": {
@@ -308,6 +361,76 @@ def write_checkpoint(phase: str, findings: dict):
   },
   "gaps_identified": ["尚未覆盖的方面"],
   "recommendations_for_lead": ["建议 LeadResearcher 追踪的方向"]
+}
+```
+
+---
+
+## CROSS-DOMAIN EXTRACTION (v6.4 NEW)
+
+When analyzing discussions, ALSO extract:
+
+1. **ArXiv Papers Mentioned**
+   - ArXiv IDs in comments (same pattern as github-watcher)
+   - Paper titles discussed
+   - Links to arxiv.org
+
+2. **GitHub Repositories Discussed**
+   - Repo mentions (org/repo format)
+   - GitHub links
+   - Framework comparisons
+
+3. **Framework/Tool Mentions**
+   - "LangGraph", "CrewAI", "AutoGen", etc.
+   - Tool comparison discussions
+   - "X vs Y" framework debates
+
+**Extraction Pattern**:
+```python
+# Paper/Repo extraction from discussions
+PAPER_PATTERNS = [
+    r'arxiv\.org/abs/(\d+\.\d+)',
+    r'arXiv:(\d+\.\d+)',
+    r'\b(\d{4}\.\d{4,5})\b',
+]
+
+REPO_PATTERNS = [
+    r'github\.com/([\w-]+/[\w-]+)',
+    r'\b([\w-]+/[\w-]+)\b',  # When preceded by "on GitHub", etc.
+]
+
+FRAMEWORK_PATTERNS = [
+    r'\b(LangGraph|CrewAI|AutoGen|Swarm)\b',
+    r'\b(openai/swarm|openai-agents|microsoft/autogen)\b',
+]
+```
+
+**Cross-Domain JSON Output**:
+```json
+{
+  "papers_discussed": ["2506.12508", "2308.00352"],
+  "repos_discussed": ["langchain-ai/langgraph", "crewAIInc/crewAI"],
+  "cross_domain_links": {
+    "papers": [
+      {
+        "arxiv_id": "2506.12508",
+        "context": "Discussion about AgentOrchestra framework",
+        "sentiment": "positive"
+      }
+    ],
+    "repos": [
+      {
+        "name": "langchain-ai/langgraph",
+        "context": "Comparison with CrewAI",
+        "sentiment": "mixed"
+      }
+    ],
+    "framework_mentions": {
+      "LangGraph": 15,
+      "CrewAI": 12,
+      "AutoGen": 8
+    }
+  }
 }
 ```
 

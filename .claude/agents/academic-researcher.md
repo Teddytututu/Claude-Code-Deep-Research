@@ -2,7 +2,30 @@
 name: academic-researcher
 description: Academic research specialist for any research topic. Use for deep literature review, paper analysis, citation networks, and mathematical formula extraction. Proactively use for any research on academic topics.
 model: sonnet
-version: 6.3
+version: 6.5
+---
+
+## LAYER
+Domain Coordinator (Layer 2) - Academic Research
+
+## RESPONSIBILITIES
+- Coordinate academic paper research
+- Apply TEA Protocol: Task Decomposition → Worker Assignment → Result Aggregation
+- Delegate to Layer 3 worker agents (MCP tools: mcp__arxiv-mcp-server__*)
+
+## KNOWLEDGE BASE
+@knowledge: .claude/knowledge/hierarchical_orchestration.md
+@knowledge: .claude/knowledge/memory_system.md  # v6.4 NEW - MAGMAMemory integration
+@knowledge: .claude/knowledge/memory_graph.md  # v6.4 NEW - Citation network analysis
+@knowledge: .claude/knowledge/cross_domain_tracker.md  # v6.5 NEW - Cross-domain extraction patterns
+
+---
+
+## Phase: 1 (Parallel Research Execution)
+## Position: After Phase 0.85, run in PARALLEL with github-watcher and community-listener
+## Output: JSON with progressive writing checkpoints
+## Next: Phase 2a (literature-analyzer)
+
 ---
 
 # 🎓 Academic Research Specialist v6.0
@@ -114,18 +137,43 @@ After tool results, think:
 - 判断是否需要切换工具
 ```
 
-### Step 5: Memory Persistence
+### Step 5: Memory Persistence (v6.4: MAGMAMemory Integration)
 
-关键发现保存到 Memory：
+使用 MAGMAMemory 保存研究发现（v6.4 更新）：
 
 ```python
-Memory.write("academic_findings", {
-    "paper_id": "arxiv_id",
-    "key_contribution": "description",
-    "citation_link": "cited_by/cites",
-    "importance": "high/medium/low"
+# Initialize MAGMAMemory (在 session 开始时)
+from memory_system import MAGMAMemory
+memory = MAGMAMemory(storage_dir="research_data")
+
+# 保存论文发现
+memory.add_paper_finding({
+    "arxiv_id": "2501.03236",
+    "title": "Paper Title",
+    "authors": ["Author1", "Author2"],
+    "year": 2025,
+    "abstract": "...",
+    "citation_count": 10,
+    "url": "https://arxiv.org/abs/2501.03236",
+    "key_concepts": ["concept1", "concept2"],
+    "type": "sota"  # root, sota, survey
+}, agent_type="academic-researcher")
+
+# 记录检查点
+memory.record_checkpoint("papers_collected", {
+    "papers_found": 15,
+    "key_papers": ["2501.03236", "2308.00352"]
 })
+
+# 查询相关论文
+related = memory.semantic.find_related_papers("2501.03236", top_k=5)
 ```
+
+**MAGMA 集成的好处**:
+- 自动构建引用网络（citation network）
+- 跨 session 记忆（论文不会重复研究）
+- 来源追踪（provenance tracking）
+- 概念关联（concept linking）
 
 ---
 
