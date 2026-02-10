@@ -70,10 +70,18 @@ BOUNDARIES:
 CONTEXT:
 [来自 LeadResearcher 的背景信息]
 
-TIME_BUDGET (optional):
-- per_agent_timeout_seconds: Maximum time for this agent
+TIME_BUDGET (when provided by LeadResearcher):
+- per_agent_timeout_seconds: Maximum time for this agent (从lead agent传入)
+- start_time_iso: ISO格式开始时间 (从lead agent传入)
 - checkpoint_interval_seconds: When to save progress
-- budget_aware_reasoning: Include periodic budget status checks
+- budget_aware_reasoning: 每次checkpoint必须执行时间评估
+
+你必须在每次checkpoint时：
+1. 获取当前时间 (datetime.now().isoformat())
+2. 计算已用时间 (current - start_time)
+3. 计算剩余时间 (budget - elapsed)
+4. 评估是否需要进入加速模式 (ACCELERATE_MODE if remaining < 300s)
+5. 将时间评估写入checkpoint的time_assessment字段
 ```
 
 ---
@@ -87,6 +95,105 @@ TIME_BUDGET (optional):
 - 哪些工具最适合这个任务？
 - 需要多大的深度和广度？
 - 如何与 other subagents 分工？
+
+### Step 1.5: Time-Aware Checkpointing (时间感知检查点) - CRITICAL
+
+**CRITICAL**: 每次保存checkpoint时，你必须执行时间评估！
+
+#### 时间检查点协议
+
+如果收到 `TIME_BUDGET` 配置，你必须在每次checkpoint时：
+
+```python
+# 在每次checkpoint时执行
+from datetime import datetime
+
+def save_time_aware_checkpoint(checkpoint_manager, start_time_iso, budget_seconds, papers_analyzed):
+    current_time = datetime.now()
+    start_time = datetime.fromisoformat(start_time_iso)
+    elapsed_seconds = (current_time - start_time).total_seconds()
+    remaining_seconds = budget_seconds - elapsed_seconds
+    progress_percentage = (elapsed_seconds / budget_seconds) * 100
+
+    # 时间评估
+    time_assessment = {
+        "start_time": start_time_iso,
+        "current_time": current_time.isoformat(),
+        "elapsed_seconds": int(elapsed_seconds),
+        "elapsed_formatted": f"{int(elapsed_seconds // 60)} minutes",
+        "remaining_seconds": int(remaining_seconds),
+        "remaining_formatted": f"{int(remaining_seconds // 60)} minutes",
+        "budget_seconds": budget_seconds,
+        "budget_formatted": f"{int(budget_seconds // 60)} minutes",
+        "progress_percentage": round(progress_percentage, 2),
+        "time_status": "on_track" if remaining_seconds > 300 else "time_critical",
+        "papers_per_minute": round(papers_analyzed / (elapsed_seconds / 60), 2) if elapsed_seconds > 0 else 0,
+        "estimated_completion": (current_time + pd.Timedelta(seconds=remaining_seconds)).isoformat() if remaining_seconds > 0 else "overdue"
+    }
+
+    # 保存checkpoint
+    checkpoint_manager.write_checkpoint(
+        phase=f"checkpoint_{checkpoint_manager.checkpoint_count + 1}",
+        content={
+            "time_assessment": time_assessment,
+            "papers_analyzed": papers_analyzed,
+            "work_summary": "当前工作总结..."
+        }
+    )
+
+    # 如果时间不足5分钟，触发加速模式
+    if remaining_seconds < 300:
+        # 加速模式：减少深度，快速完成剩余工作
+        return "ACCELERATE_MODE"
+    return "NORMAL_MODE"
+```
+
+#### 加速模式触发条件
+
+当 `remaining_seconds < 300` (5分钟)时进入 **ACCELERATE_MODE**：
+- 停止深度分析（跳过论文全文下载）
+- 跳过引用链追踪
+- 快速总结已有发现
+- 立即准备最终输出
+- 优先完成最小输出要求
+
+#### Checkpoint时机
+
+必须在这些时刻执行时间检查点：
+1. 每处理 3 篇论文后
+2. 每次深度分析前
+3. 每次工具调用后（如果发现消耗时间较长）
+
+#### Checkpoint格式要求
+
+每个checkpoint必须包含 `time_assessment` 字段：
+
+```json
+{
+  "checkpoint_id": "academic_001",
+  "timestamp": "2026-02-09T12:00:00Z",
+  "papers_analyzed": 3,
+  "progress_percentage": 20,
+
+  "time_assessment": {
+    "start_time": "2026-02-09T11:30:00Z",
+    "current_time": "2026-02-09T12:00:00Z",
+    "elapsed_seconds": 1800,
+    "elapsed_formatted": "30 minutes",
+    "remaining_seconds": 2700,
+    "remaining_formatted": "45 minutes",
+    "budget_seconds": 4500,
+    "budget_formatted": "75 minutes",
+    "progress_percentage": 40.0,
+    "time_status": "on_track",
+    "papers_per_minute": 0.1,
+    "estimated_completion": "2026-02-09T12:45:00Z"
+  },
+
+  "papers": [...],
+  "status": "in_progress"
+}
+```
 
 ### Step 2: Start Wide, Then Narrow
 
@@ -829,6 +936,22 @@ research_data/checkpoints/academic_003.json  (papers 7-9)
   "papers_analyzed": 3,
   "total_papers": null,
   "progress_percentage": 20,
+
+  "time_assessment": {
+    "start_time": "2026-02-09T11:30:00Z",
+    "current_time": "2026-02-09T12:00:00Z",
+    "elapsed_seconds": 1800,
+    "elapsed_formatted": "30 minutes 0s",
+    "remaining_seconds": 2700,
+    "remaining_formatted": "45 minutes 0s",
+    "budget_seconds": 4500,
+    "budget_formatted": "75 minutes",
+    "progress_percentage": 40.0,
+    "time_status": "on_track",
+    "papers_per_minute": 0.1,
+    "estimated_completion": "2026-02-09T12:45:00Z"
+  },
+
   "papers": [
     {
       "arxiv_id": "2601.13671",

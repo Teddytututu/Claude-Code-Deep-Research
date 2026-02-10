@@ -61,6 +61,8 @@
 - ✅ Analyze user query and determine if multi-agent is needed
 - ✅ Coordinate decision-support agents (performance-predictor, framework-selector, mcp-coordinator)
 - ✅ Deploy research subagents in parallel with proper task specifications
+- ✅ **Wait for subagents to complete and check results**
+- ✅ **If subagent incomplete due to time limit: relaunch with continuation instructions**
 - ✅ Coordinate logic analysis before report generation
 - ✅ Deploy dual report writers in parallel
 - ✅ Deploy link-validator agent automatically after reports
@@ -68,6 +70,12 @@
 - ✅ Deploy task_handle agent for custom output (optional)
 - ✅ Verify both reports' quality and deliver results to user
 - ✅ Handle error recovery and workflow coordination
+
+**CRITICAL: CLAUDE.md 是顺序编排器，不能并行工作**
+- CLAUDE.md 本身是 **sequential orchestrator**（顺序编排器）
+- 它 **launches subagents in parallel**（并行启动子智能体），但本身是 **sequential execution**
+- CLAUDE.md 一次只能做一件事：调用一个 agent，等待结果，然后调用下一个
+- **真正的并行**发生在 subagents 层面：academic-researcher、github-watcher、community-listener 同时运行
 
 **Key Principle**: CLAUDE.md 是编排者（Orchestrator），不是执行者（Executor）。质量胜于数量，智能委托胜于蛮力搜索。
 
@@ -118,6 +126,13 @@
 ┌───────────────────────────────────────┐
 │ Phase 1: Parallel Research Execution │
 │   Deploy 3 research subagents        │
+│   (带 max_turns 限制)                │
+└───────────────────┬───────────────────┘
+                    │
+┌───────────────────┴───────────────────┐
+│ Phase 1.1: Completion Check (NEW!)    │
+│   检查 subagent 是否完成最小要求        │
+│   如未完成: 从 checkpoint 继续执行     │
 └───────────────────┬───────────────────┘
                     │
 ┌───────────────────┴───────────────────┐
@@ -147,7 +162,11 @@
 └───────────────────────────────────────┘
 ```
 
-**Important**: Phase 1.5 runs after Phase 1, before Phase 2a. Phase 2d runs automatically after Phase 2b.
+**Important**:
+- Phase 1.5 runs after Phase 1, before Phase 2a
+- Phase 1.1 runs immediately after Phase 1 subagents complete (sequential check)
+- Phase 2d runs automatically after Phase 2b
+- **CLAUDE.md 是顺序编排器**：它依次等待每个 phase 完成，然后进入下一个
 
 ---
 
@@ -433,114 +452,38 @@ class OrchestrationObject:
 
 # PART II: THEORETICAL FOUNDATION / 理论基础
 
-## Academic Research Integration / 学术研究整合
+## Key Research Papers / 核心研究论文
 
-### Memory Architecture (MAGMA) / 记忆架构
+| Area | Paper | arXiv ID | Key Contribution |
+|------|-------|----------|-----------------|
+| **Memory** | MAGMA: Multi-Graph Agentic Memory | [2601.03236](https://arxiv.org/abs/2601.03236) | Semantic + Temporal + Episodic |
+| **Orchestration** | AgentOrchestra Framework | [2506.12508](https://arxiv.org/abs/2506.12508) | Meta-Orchestrator → Domain Leads |
+| **Retrieval** | GraphRAG Benchmark | [2507.03608](https://arxiv.org/abs/2507.03608) | Vector + Graph RRF fusion |
+| **Budget** | BudgetThinker | [2508.17196](https://arxiv.org/abs/2508.17196) | 66% budget adherence |
+| **Timeout** | ALAS | [2511.03094](https://arxiv.org/abs/2511.03094) | 60% token reduction |
+| **Collaboration** | Collaboration Survey | [2501.06322](https://arxiv.org/abs/2501.06322) | Comm + Coord + Coop |
 
-**Paper**: [MAGMA: Multi-Graph Agentic Memory Architecture](https://arxiv.org/pdf/2601.03236) [arXiv:2601.03236](https://arxiv.org/abs/2601.03236)
-
-**Components**:
-- **SemanticMemory**: Knowledge graph (Papers → Citations → Concepts)
-- **TemporalMemory**: Time-series tracking with provenance
-- **EpisodicMemory**: Context windows for active sessions
-
-### Orchestration Patterns / 编排模式
-
-**Paper**: [AgentOrchestra: A Hierarchical Multi-Agent Framework](https://arxiv.org/abs/2506.12508) [arXiv:2506.12508](https://arxiv.org/abs/2506.12508)
-
-**Architecture**: Meta-Orchestrator → Domain Leads → Worker Executors
-- Based on Tool-Environment-Agent (TEA) Protocol
-- Reduces coordination overhead from flat structure
-
-### Retrieval Systems / 检索系统
-
-**Paper**: [Benchmarking Vector, Graph and Hybrid Retrieval](https://arxiv.org/abs/2507.03608) [arXiv:2507.03608](https://arxiv.org/abs/2507.03608)
-
-**GraphRAG**: Vector + Knowledge Graph with RRF (Reciprocal Rank Fusion)
-- Agentic RAG for intelligent method selection
-
-### Budget-Aware Execution / 预算感知执行
-
-**Key Papers**:
-- **BudgetThinker** [arXiv:2508.17196](https://arxiv.org/abs/2508.17196) - Control tokens achieve 66% budget adherence
-- **ALAS** [arXiv:2511.03094](https://arxiv.org/abs/2511.03094) - Explicit timeout policies, 60% token reduction
-- **BATS** [arXiv:2511.17006](https://arxiv.org/abs/2511.17006) - Budget-aware tool-use framework
-- **Co-Saving** [arXiv:2505.21898](https://arxiv.org/abs/2505.21898) - Resource collaboration, 50.85% token reduction
-- **B2MAPO** [arXiv:2407.15077](https://arxiv.org/abs/2407.15077) - Batch optimization, 78.7% execution time reduction
-
-### Context Engineering / 上下文工程
-
-**Paper**: [Everything is Context: Agentic File System Abstraction](https://arxiv.org/abs/2512.05470) [arXiv:2512.05470](https://arxiv.org/abs/2512.05470)
-- File system abstraction layer for context engineering
-- Semantic namespace-based organization
-
----
-
-## Orchestration Taxonomy / 编排分类学
-
-### 1. Centralized Orchestration / 中央编排
-
-- **Definition**: Single orchestrator agent coordinates all workers
-- **Examples**: Anthropic's LeadResearcher system, MetaGPT
-- **Papers**: [MetaGPT (ICLR 2024)](https://arxiv.org/abs/2308.00352) | [AutoGen (ACL 2023)](https://arxiv.org/abs/2308.08155)
-- **Pros**: Clear control flow, easy coordination
-- **Cons**: Single point of failure, orchestrator bottleneck
-
-### 2. Decentralized Orchestration / 去中心化
-
-- **Definition**: Peer-to-peer communication without central controller
-- **Papers**: [Hierarchical Multi-Agent (AAAI 2024)](https://arxiv.org/abs/2412.17481)
-- **Pros**: Scalable, resilient to failures
-- **Cons**: Complex coordination, potential conflicts
-
-### 3. Hierarchical Orchestration / 分层架构
-
-- **Definition**: Multi-level organization with team-level abstraction
-- **Papers**: [Cross-Team (NeurIPS 2024)](https://arxiv.org/abs/2406.08979)
-- **Pros**: Scalable to large numbers, clear abstraction levels
-- **Cons**: More complex design, communication overhead
-
----
-
-## Memory Architecture Patterns / 记忆架构模式
-
-| Architecture | Description | Pros | Cons |
-|--------------|-------------|------|------|
-| **No Memory** | Stateless agents | Simple, predictable | No learning between interactions |
-| **Local Memory** | Each agent maintains own context | Isolated, private | No knowledge sharing |
-| **Shared Memory** | Common accessible memory store | Simple, all agents have same context | Scalability issues, memory pollution |
-| **Distributed Memory** | Peer-to-peer knowledge exchange | Scalable, isolation | Duplication, coherence challenges |
-| **Hybrid (MAGMA)** | Semantic + Temporal + Episodic | Balance of sharing and isolation | More complex, consistency challenges |
-
----
-
-## Collaboration Mechanism Framework / 协作机制框架
-
-Based on [Collaboration Survey (arXiv:2501.06322)](https://arxiv.org/abs/2501.06322):
+## Orchestration Taxonomy / 编排分类
 
 ```
-Collaboration = Communication + Coordination + Cooperation
+Centralized (本系统) → Single orchestrator, clear control flow
+Decentralized → Peer-to-peer, scalable but complex
+Hierarchical → Multi-level, team abstraction (AgentOrchestra)
 ```
 
-**Three Core Dimensions**:
-1. **Communication** (通信): Message passing, shared state, broadcast, peer-to-peer
-2. **Coordination** (协调): Centralized planning, decentralized negotiation, hierarchical control
-3. **Cooperation** (合作): Shared objectives, incentive mechanisms, social norms
+## Memory Architecture / 记忆架构
 
----
+| Type | Description | Use Case |
+|------|-------------|----------|
+| No Memory | Stateless | Simple tasks |
+| Local Memory | Agent-private | Isolated work |
+| Shared Memory | Global store | Small teams |
+| **Hybrid (MAGMA)** | Semantic + Temporal + Episodic | **Production systems** |
 
 ## Production Features / 生产特性
 
-### Observability Stack / 可观测性栈
-- **Metrics**: Token usage, latency, costs
-- **Tracing**: Distributed agent execution traces
-- **Event logging**: Real-time streaming with structured logs
-
-### Resilience System / 弹性系统
-- **Retry policies**: Exponential backoff with jitter
-- **Circuit breaker**: Cascading failure prevention
-- **Checkpoint recovery**: State persistence and resume
-- **Graceful degradation**: Fallback mechanisms
+- **Observability**: Token usage, latency, distributed tracing
+- **Resilience**: Retry with backoff, circuit breaker, checkpoint recovery
 
 ---
 
@@ -692,9 +635,14 @@ python "tools\memory_graph_cli.py" --stats
 ## User Configuration / 用户配置
 
 ```ini
-[TARGET] = "研究主题文件或直接输入"
-[OUTPUT_DIR] = "research_output"
-[LANGUAGE_STYLE] = "Chinese Narrative + English Terminology"
+[TARGET]          = "研究主题文件或直接输入"
+[OUTPUT_DIR]      = "research_output"
+[LANGUAGE_STYLE]  = "Chinese Narrative + English Terminology"
+
+# Optional / 可选
+[TIME_BUDGET]     = "1h" / "30min" / None
+[FRAMEWORK]       = "LangGraph" / "CrewAI" / "AutoGen" / None
+[CUSTOM_TASK]     = "blog" / "slides" / "code" / None
 ```
 
 ---
@@ -713,11 +661,20 @@ Provide:
 2. Estimated single-agent success rate (%)
 3. Parallelizability assessment
 4. Cost-benefit recommendation (multi-agent vs single-agent)
-5. Optimal agent count if multi-agent recommended"""
+5. Optimal agent count if multi-agent recommended
+6. **Estimated time budget (seconds)** based on complexity:
+   - simple: 600s (10 minutes)
+   - medium: 1800s (30 minutes)
+   - complex: 3600s (60 minutes)
+   - deep: 7200s (120 minutes)
+
+Output format: JSON with keys: query_type, success_rate, parallelizable, recommendation, estimated_time_seconds"""
 )
 ```
 
 **决策逻辑**: IF `single_agent_success_rate < 45% AND parallelizable_aspects >= 2` → Continue Phase 0
+
+**Time Budget Storage**: Store performance-predictor's time estimation for use if user doesn't specify time budget.
 
 ---
 
@@ -791,30 +748,112 @@ WARNING: Swarm is EDUCATIONAL ONLY - NO state persistence"""
 ### Phase 0.85: Timeout Budget Allocation / 超时预算分配 (可选)
 
 ```python
-time_budget = parse_time_budget(user_query)
-IF time_budget EXISTS:
-    Task(subagent_type="timeout-specialist", prompt=f"""Analyze time budget for: {query}
-Total time: {time_budget['total_minutes']} minutes
+### Time Budget Calculation / 时间预算计算
+
+# Initialize time allocation (will be populated from user spec or performance-predictor)
+time_allocation = None
+
+# 来源1: 用户明确指定 (优先级最高)
+user_time_budget = parse_time_budget(user_query)
+if user_time_budget:
+    time_allocation = Task(
+        subagent_type="timeout-specialist",
+        prompt=f"""Analyze time budget for: {query}
+Total time: {user_time_budget['total_minutes']} minutes
 Subagents: 3 (parallel execution)
 
-Provide:
-1. Per-agent timeout (seconds)
-2. Checkpoint interval (seconds)
-3. Timeout mechanism recommendation
-4. Orchestration pattern if workflow > 5 minutes""")
+Provide a JSON response with:
+1. per_agent_timeout_seconds: Time each agent gets (NOT divided by 3!)
+2. checkpoint_interval_seconds: How often to save progress
+3. start_time_iso: Current ISO timestamp for agent tracking
+4. time_source: "user_specified"
+
+Remember: Per-Agent Time = Total Budget × 80% (agents run in PARALLEL)"""
+    )
+
+# 来源2: performance-predictor估算 (如果没有用户指定)
+if not time_allocation:
+    # This runs after Phase -1, so we have performance_result
+    # performance_result should include estimated_time_seconds
+    performance_time_estimate = performance_result.get("estimated_time_seconds", 1800)  # default 30min
+
+    time_allocation = {
+        "per_agent_timeout_seconds": performance_time_estimate,
+        "checkpoint_interval_seconds": performance_time_estimate * 0.10,  # 10% of budget
+        "start_time_iso": datetime.now().isoformat(),
+        "time_source": "performance_predictor",
+        "total_budget_seconds": performance_time_estimate
+    }
 ```
 
-**Key Formula**: `Per-Agent Time = Total Budget × 80%` (每个 agent 获得全部可用时间)
+**Key Formula**: `Per-Agent Time = Total Budget × 80%` (每个 agent 获得全部可用时间，不是除以3！)
+
+**Time Budget Example**:
+```python
+# 用户: "深度研究 LangGraph，给我1小时"
+# time_allocation = {
+#     "per_agent_timeout_seconds": 2880,  # 48 minutes = 3600 × 80%
+#     "checkpoint_interval_seconds": 288,  # ~5 minutes
+#     "start_time_iso": "2026-02-11T10:30:00Z",
+#     "time_source": "user_specified",
+#     "total_budget_seconds": 3600
+# }
+```
 
 ---
 
 ### Phase 1: Research Subagent Deployment / 研究子代理部署
 
 ```python
+### Calculate max_turns based on time allocation
+# 假设每个turn平均2分钟，per_agent_budget_seconds / 120 = max_turns
+max_turns_per_agent = None
+start_time_iso = datetime.now().isoformat()
+
+if time_allocation and time_allocation.get("per_agent_timeout_seconds"):
+    budget_seconds = time_allocation["per_agent_timeout_seconds"]
+    # Calculate max_turns: assuming 2 minutes per turn on average
+    max_turns_per_agent = max(10, budget_seconds // 120)
+
+# Prepare time budget string for subagents
+time_budget_str = ""
+if time_allocation:
+    time_budget_str = f"""
+TIME_BUDGET:
+- per_agent_timeout_seconds: {time_allocation.get('per_agent_timeout_seconds', 'default')}
+- start_time_iso: {time_allocation.get('start_time_iso', start_time_iso)}
+- checkpoint_interval_seconds: {time_allocation.get('checkpoint_interval_seconds', 'default')}
+- time_source: {time_allocation.get('time_source', 'default')}
+
+CRITICAL: You MUST track time at each checkpoint. When remaining_seconds < 300 (5 min),
+enter ACCELERATE_MODE: stop deep analysis, skip citation chains, quickly summarize findings.
+"""
+
 # 并行部署（在一个 Claude 消息中）
-Task(subagent_type="academic-researcher", prompt="...")
-Task(subagent_type="github-watcher", prompt="...")
-Task(subagent_type="community-listener", prompt="...")
+# IMPORTANT: Pass max_turns parameter to enforce time limits
+Task(
+    subagent_type="academic-researcher",
+    prompt=f"""...原有prompt...
+{time_budget_str}
+""",
+    max_turns=max_turns_per_agent  # 关键：传递max_turns参数
+)
+
+Task(
+    subagent_type="github-watcher",
+    prompt=f"""...原有prompt...
+{time_budget_str}
+""",
+    max_turns=max_turns_per_agent
+)
+
+Task(
+    subagent_type="community-listener",
+    prompt=f"""...原有prompt...
+{time_budget_str}
+""",
+    max_turns=max_turns_per_agent
+)
 ```
 
 **Subagent Task Specification**: 每个 Subagent 必须收到:
@@ -824,7 +863,179 @@ Task(subagent_type="community-listener", prompt="...")
 4. **Source Guidance**: 哪些信息源最相关
 5. **Task Boundaries**: 什么在范围内，什么不在
 6. **Quality Requirements**: 最小产出标准和质量检查清单
-7. **Time Budget Constraints** (if applicable)
+7. **Time Budget Constraints** (当 time_allocation 存在时):
+   - `per_agent_timeout_seconds`: 每个agent的时间限制
+   - `start_time_iso`: 开始时间（ISO格式）
+   - `checkpoint_interval_seconds`: 检查点间隔
+   - `time_source`: 时间来源（user_specified 或 performance_predictor）
+
+**Critical**: `max_turns` 参数直接传递给 Task 工具，强制限制子智能体的执行轮次。当达到限制时，子智能体会优雅终止，已保存的checkpoint不会丢失。
+
+---
+
+### Phase 1.1: Subagent Completion Check & Continuation (子智能体完成检查与续传)
+
+**Purpose**: 检查子智能体是否因时间限制提前终止，如果是则从 checkpoint 继续执行。
+
+**Trigger**: 当任何 research subagent 完成后（无论成功还是因 max_turns 限制终止）
+
+**Continuation Protocol**:
+
+```python
+### Phase 1.1: Check and Continue Incomplete Subagents
+
+# 定义最小完成要求
+MINIMUM_REQUIREMENTS = {
+    "academic-researcher": {"papers_analyzed": 5, "key_papers": 3},
+    "github-watcher": {"projects_analyzed": 8, "key_projects": 4},
+    "community-listener": {"threads_analyzed": 15, "consensus_points": 3}
+}
+
+def check_minimum_requirements(output_file: str, agent_type: str) -> tuple[bool, dict]:
+    """
+    检查 subagent 输出是否满足最小要求
+
+    Returns:
+        (is_complete, remaining_requirements)
+    """
+    from pathlib import Path
+    import json
+
+    output_path = Path(output_file)
+    if not output_path.exists():
+        return False, {"error": "Output file not found"}
+
+    with open(output_path, 'r', encoding='utf-8') as f:
+        data = json.load(f)
+
+    findings = data.get("research_findings", {})
+    requirements = MINIMUM_REQUIREMENTS.get(agent_type, {})
+    remaining = {}
+
+    for key, min_value in requirements.items():
+        current_value = findings.get(key, 0)
+        if current_value < min_value:
+            remaining[key] = {
+                "current": current_value,
+                "required": min_value,
+                "remaining": min_value - current_value
+            }
+
+    return len(remaining) == 0, remaining
+
+# 等待所有 subagents 完成
+# 注意：CLAUDE.md 是顺序执行，必须等待每个 Task 完成
+academic_result = wait_for_task(academic_task)
+github_result = wait_for_task(github_task)
+community_result = wait_for_task(community_task)
+
+# 检查每个 subagent 的完成状态
+subagents = [
+    ("academic-researcher", academic_result, "research_data/academic_researcher_output.json"),
+    ("github-watcher", github_result, "research_data/github_researcher_output.json"),
+    ("community-listener", community_result, "research_data/community_researcher_output.json")
+]
+
+for agent_type, result, output_file in subagents:
+    is_complete, remaining = check_minimum_requirements(output_file, agent_type)
+
+    if not is_complete:
+        print(f"[CLAUDE.md] {agent_type} incomplete: {remaining}")
+
+        # 检查是否有 checkpoint 可以继续
+        checkpoint_file = f"research_data/checkpoints/{agent_type.replace('-', '_')}_FINAL.json"
+
+        # 如果没有最终 checkpoint，查找最新的
+        from pathlib import Path
+        checkpoint_dir = Path("research_data/checkpoints")
+        checkpoints = sorted(checkpoint_dir.glob(f"{agent_type.replace('-', '_')}_*.json"))
+
+        if checkpoints:
+            latest_checkpoint = checkpoints[-1]
+
+            # 计算剩余时间
+            if time_allocation:
+                elapsed = (datetime.now() - datetime.fromisoformat(
+                    time_allocation.get("start_time_iso", datetime.now().isoformat())
+                )).total_seconds()
+                total_budget = time_allocation.get("total_budget_seconds", 3600)
+                remaining_seconds = total_budget - elapsed
+
+                # 只有当剩余时间 >= 5 分钟时才继续
+                if remaining_seconds >= 300:
+                    print(f"[CLAUDE.md] Relaunching {agent_type} with {remaining_seconds}s remaining")
+
+                    # 重新启动 agent，传递 continuation 指令
+                    Task(
+                        subagent_type=agent_type,
+                        prompt=f"""CONTINUE FROM CHECKPOINT
+
+Your previous session was interrupted due to time limit (max_turns).
+
+LATEST CHECKPOINT: {latest_checkpoint}
+TIME_REMAINING: {remaining_seconds} seconds ({int(remaining_seconds//60)} minutes)
+
+MINIMUM REQUIREMENTS REMAINING:
+{json.dumps(remaining, indent=2)}
+
+INSTRUCTIONS:
+1. Load the checkpoint data from {output_file}
+2. Continue from where you left off
+3. Enter ACCELERATE_MODE: Focus on completing minimum requirements only
+4. Skip deep analysis and citation chains
+5. Prioritize quantity over quality for remaining items
+
+Time Budget: Use checkpoint_manager.get_time_assessment() to track progress.
+""",
+                        max_turns=max(5, remaining_seconds // 120)  # 至少5轮
+                    )
+                else:
+                    print(f"[CLAUDE.md] Insufficient time to continue {agent_type}")
+            else:
+                print(f"[CLAUDE.md] No time budget set, cannot continue {agent_type}")
+        else:
+            print(f"[CLAUDE.md] No checkpoint found for {agent_type}, cannot continue")
+```
+
+**Minimum Requirements by Agent Type**:
+
+| Agent Type | Minimum Papers/Projects | Minimum Key Items | Rationale |
+|------------|------------------------|-------------------|-----------|
+| `academic-researcher` | 5 papers analyzed | 3 key papers | Basic coverage of research topic |
+| `github-watcher` | 8 projects analyzed | 4 key projects | Representation across tech factions |
+| `community-listener` | 15 threads analyzed | 3 consensus points | Minimum community validation |
+
+**Acceleration Mode Protocol**:
+
+当 subagent 进入续传模式时：
+1. **Skip full-text downloads** — 使用 abstract 和 summary
+2. **Limit citation chains** — 只追踪直接引用，不递归
+3. **Reduce tool calls** — 批量处理而非逐个查询
+4. **Simplify output** — 跳过详细分析，保留核心发现
+
+**Checkpoint Resume Format**:
+
+```json
+{
+  "checkpoint_number": 2,
+  "phase": "phase2_deep_exploration",
+  "timestamp": "2026-02-11T12:00:00Z",
+  "items_processed": 3,
+  "time_assessment": {
+    "elapsed_seconds": 1800,
+    "remaining_seconds": 300,
+    "time_status": "time_critical"
+  },
+  "content": {
+    "work_summary": "Analyzed 3 papers: 2501.03236, 2506.12508, 2507.03608",
+    "next_steps": [
+      "Download remaining 2 papers",
+      "Build citation network",
+      "Identify research gaps"
+    ]
+  }
+}
+```
 
 ---
 

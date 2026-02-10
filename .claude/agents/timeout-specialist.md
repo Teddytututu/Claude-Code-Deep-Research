@@ -509,6 +509,16 @@ def handler():
     "per_agent_timeout_limit": 300,
     "recommended_approach": "orchestration_object_pattern"
   },
+  "time_allocation": {
+    "per_agent_timeout_seconds": 2880,
+    "checkpoint_interval_seconds": 288,
+    "start_time_iso": "2026-02-11T10:30:00Z",
+    "time_source": "user_specified",
+    "total_budget_seconds": 3600,
+    "coordination_buffer_seconds": 720,
+    "available_time_seconds": 2880,
+    "subagent_count": 3
+  },
   "mechanism_recommendation": {
     "primary": "Interrupt-based Pausing (LangGraph)",
     "reasoning": "Code-level precision, checkpoint resume capability",
@@ -546,6 +556,17 @@ def handler():
   ]
 }
 ```
+
+### Key Output Fields for Subagent Time Tracking
+
+当被 LeadResearcher 调用时，你必须输出以下字段用于传递给 research subagents：
+
+1. **per_agent_timeout_seconds**: 每个子智能体的时间限制（秒）
+2. **checkpoint_interval_seconds**: 检查点间隔（秒）
+3. **start_time_iso**: 当前 ISO 格式时间戳
+4. **time_source**: 时间来源（user_specified 或 performance_predictor）
+
+这些字段会被 LeadResearcher 直接传递给 research subagents。
 
 ---
 
