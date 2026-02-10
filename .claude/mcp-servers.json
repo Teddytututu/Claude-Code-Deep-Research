@@ -1,0 +1,31 @@
+{
+  "description": "MCP servers for Deep Research System v7.0",
+  "mcp_servers": {
+    "arxiv": {
+      "command": "npx",
+      "args": ["-y", "@arxiv/mcp-server"],
+      "description": "ArXiv paper search and retrieval"
+    },
+    "github": {
+      "command": "npx",
+      "args": ["-y", "@github/mcp-server"],
+      "description": "GitHub repository analysis"
+    },
+    "brave-search": {
+      "command": "npx",
+      "args": ["-y", "@brave-search/mcp-server"],
+      "description": "Web search for supplementary sources"
+    },
+    "web-reader": {
+      "command": "npx",
+      "args": ["-y", "@web-reader/mcp-server"],
+      "description": "Web content reading and parsing"
+    }
+  },
+  "notes": [
+    "ArXiv: Academic paper search, download, and full-text reading",
+    "GitHub: Repository structure, file reading, and documentation search",
+    "Brave Search: Web search for additional sources and community discussions",
+    "Web Reader: Parse web content from blogs, discussions, and documentation"
+  ]
+}

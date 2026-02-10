@@ -1,0 +1,32 @@
+{
+  "description": "Multi-agent research workflow hooks for Deep Research System v7.0",
+  "version": "7.0",
+  "hooks": {
+    "UserPromptSubmit": [
+      {
+        "hooks": [{
+          "type": "command",
+          "command": "python .claude/hooks/detect_research_intent.py",
+          "timeout": 5,
+          "description": "Detect research intent and recommend multi-agent approach"
+        }]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "hooks": [{
+          "type": "command",
+          "command": "python .claude/hooks/token_budget_check.py",
+          "timeout": 3,
+          "description": "Monitor token budget and provide warnings at 70%/90% thresholds"
+        }]
+      }
+    ]
+  },
+  "notes": [
+    "UserPromptSubmit: Triggers before processing user input",
+    "PreToolUse: Triggers before each tool execution",
+    "Token budget warnings based on Chinese community best practices",
+    "Research intent detection uses 45% threshold rule (Google/MIT study)"
+  ]
+}
