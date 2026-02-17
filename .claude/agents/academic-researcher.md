@@ -157,12 +157,78 @@ def save_time_aware_checkpoint(checkpoint_manager, start_time_iso, budget_second
 - 立即准备最终输出
 - 优先完成最小输出要求
 
+### Step 2.25: Time-Aware Tool Timeout (v9.3 - CRITICAL)
+
+**CRITICAL**: 在每次工具调用前，必须检查剩余时间！
+
+```python
+def should_skip_tool(time_assessment, tool_type="general"):
+    """
+    如果时间不足，跳过耗时操作
+
+    Returns:
+        (should_skip, reason, alternative_action)
+    """
+    remaining = time_assessment.get('remaining_seconds', 0)
+    time_status = time_assessment.get('time_status', 'unknown')
+
+    # TIME_CRITICAL: Less than 5 minutes
+    if remaining < 300:
+        if tool_type == "download_paper":
+            return True, "TIME_CRITICAL: Skip full-text download", "Use abstract only"
+        elif tool_type == "citation_chain":
+            return True, "TIME_CRITICAL: Skip deep citation tracking", "Track direct citations only"
+        elif tool_type == "full_analysis":
+            return True, "TIME_CRITICAL: Skip full analysis", "Quick summary only"
+        else:
+            return True, f"TIME_CRITICAL: Skip {tool_type}", "Use cached data or skip"
+
+    # WARNING: Less than 25% of budget or less than 10 minutes
+    elif remaining < 600 or time_status == "warning":
+        if tool_type == "download_paper":
+            return True, "ACCELERATE: Use abstract only", "Prioritize key papers only"
+        elif tool_type == "citation_chain":
+            return True, "ACCELERATE: Limit citation depth", "Track 1 level only"
+        else:
+            return False, "OK", "Proceed normally"
+
+    # ON_TRACK: Proceed normally
+    return False, "OK", "Proceed normally"
+
+
+# 使用示例：每次工具调用前检查
+time_assessment = checkpoint_manager.get_time_assessment()
+
+should_skip, reason, action = should_skip_tool(time_assessment, "download_paper")
+if should_skip:
+    # 使用降级方案
+    papers = search_papers(query=query)  # 只搜索，不下载
+    for paper in papers:
+        paper["has_full_text"] = False
+        paper["skip_reason"] = reason
+else:
+    # 正常流程
+    papers = search_papers(query=query)
+    for paper in papers[:3]:  # 仅下载关键论文
+        full_text = download_paper(paper["arxiv_id"])
+        paper["has_full_text"] = True
+```
+
+#### 降级策略表
+
+| 剩余时间 | download_paper | citation_chain | full_analysis | search_papers |
+|---------|--------------|---------------|---------------|---------------|
+| < 300s | ❌ 跳过 | ❌ 跳过 | ⚡ 快速摘要 | ✅ 仅搜索 |
+| 300-600s | ⚡ 仅关键论文 | ⚡ 1层深度 | ⚡ 中等分析 | ✅ 正常 |
+| > 600s | ✅ 正常 | ✅ 正常 | ✅ 正常 | ✅ 正常 |
+
 #### Checkpoint时机
 
 必须在这些时刻执行时间检查点：
 1. 每处理 3 篇论文后
 2. 每次深度分析前
-3. 每次工具调用后（如果发现消耗时间较长）
+3. 每次工具调用前（使用 should_skip_tool 检查）
+4. 每次工具调用后（如果发现消耗时间较长）
 
 #### Checkpoint格式要求
 

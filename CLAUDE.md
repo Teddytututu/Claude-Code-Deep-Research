@@ -189,6 +189,194 @@
 - Phase 2d runs automatically after Phase 2b
 - **CLAUDE.md 是顺序编排器**：它依次等待每个 phase 完成，然后进入下一个
 
+---
+
+## Practice Verification Logic / 实践验证逻辑
+
+### 验证清单 / Verification Checklist
+
+每次执行完整工作流后，验证以下检查点：
+
+```python
+def verify_workflow_execution() -> dict:
+    """
+    验证完整工作流执行
+
+    Returns:
+        dict: {
+            "phase_checks": {...},
+            "data_integrity": {...},
+            "time_tracking": {...},
+            "output_quality": {...}
+        }
+    """
+    from pathlib import Path
+    import json
+
+    results = {
+        "phase_checks": {},
+        "data_integrity": {},
+        "time_tracking": {},
+        "output_quality": {}
+    }
+
+    # 1. Phase Completion Checks
+    phases = [
+        ("Phase -1", "research_data/performance_prediction.json"),
+        ("Phase 0", "research_data/framework_selection.json"),
+        ("Phase 1", "research_data/academic_researcher_output.json"),
+        ("Phase 1", "research_data/github_researcher_output.json"),
+        ("Phase 1", "research_data/community_researcher_output.json"),
+        ("Phase 2a", "research_data/logic_analysis.json"),
+        ("Phase 2b", "research_output/{topic}_comprehensive_report.md"),
+        ("Phase 2b", "research_output/{topic}_literature_review.md"),
+    ]
+
+    for phase, path in phases:
+        exists = Path(path.format(topic="*")).exists() or Path(path).exists()
+        results["phase_checks"][phase] = {
+            "completed": exists,
+            "path": path
+        }
+
+    # 2. Data Integrity Checks (Problem 3: 搜索完成但数据未记录)
+    for agent_type in ["academic", "github", "community"]:
+        output_file = f"research_data/{agent_type}_researcher_output.json"
+        path = Path(output_file)
+
+        if path.exists():
+            with open(path, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+
+            # Check atomic write markers
+            has_error_handling = "last_error" in data.get("subagent_metadata", {})
+            has_checkpoints = len(data.get("subagent_metadata", {}).get("checkpoints", [])) > 0
+
+            results["data_integrity"][agent_type] = {
+                "file_exists": True,
+                "checkpoints_count": len(data.get("subagent_metadata", {}).get("checkpoints", [])),
+                "atomic_write_markers": has_error_handling,
+                "items_count": len(data.get("items", [])),
+                "save_failed": data.get("subagent_metadata", {}).get("save_failed", False)
+            }
+        else:
+            results["data_integrity"][agent_type] = {"file_exists": False}
+
+    # 3. Time Tracking Checks (Problem 1: 搜索 subagent 没有按时间被打断)
+    for agent_type in ["academic", "github", "community"]:
+        output_file = f"research_data/{agent_type}_researcher_output.json"
+        path = Path(output_file)
+
+        if path.exists():
+            with open(path, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+
+            checkpoints = data.get("subagent_metadata", {}).get("checkpoints", [])
+            time_assessments = [cp.get("time_assessment") for cp in checkpoints if cp.get("time_assessment")]
+
+            # Check if any checkpoint has time data
+            has_time_tracking = len(time_assessments) > 0
+
+            # Check if any checkpoint entered time_critical
+            entered_accelerate = any(
+                ta.get("time_status") == "time_critical"
+                for ta in time_assessments if ta
+            )
+
+            results["time_tracking"][agent_type] = {
+                "has_time_tracking": has_time_tracking,
+                "checkpoints_with_time": len(time_assessments),
+                "entered_accelerate_mode": entered_accelerate,
+                "latest_status": time_assessments[-1].get("time_status") if time_assessments else None
+            }
+        else:
+            results["time_tracking"][agent_type] = {"file_exists": False}
+
+    # 4. Output Quality Checks (Problem 4: 报告格式自动检测)
+    import re
+
+    # Check if Phase -0.5 intent detection exists
+    intent_file = Path("research_data/user_intent.json")
+    results["output_quality"]["intent_detected"] = intent_file.exists()
+
+    if intent_file.exists():
+        with open(intent_file, 'r', encoding='utf-8') as f:
+            intent_data = json.load(f)
+        results["output_quality"]["detected_formats"] = intent_data.get("output_formats", [])
+
+    # Check for custom output files (from Phase 2e)
+    custom_output_patterns = {
+        "blog_post": "*_blog_post.md",
+        "slide_deck": "*_slide_deck.md",
+        "code_examples": "*_code_examples.md",
+        "summary": "*_summary.md",
+        "comparison": "*_comparison.md",
+        "proposal": "*_proposal.md",
+    }
+
+    for format_type, pattern in custom_output_patterns.items():
+        matches = list(Path("research_output").glob(pattern))
+        results["output_quality"][f"has_{format_type}"] = len(matches) > 0
+
+    return results
+
+
+def print_verification_report(results: dict):
+    """打印验证报告"""
+    print("┌" + "─" * 58 + "┐")
+    print("│ " + " " * 10 + "WORKFLOW VERIFICATION REPORT" + " " * 24 + "│")
+    print("├" + "─" * 58 + "┤")
+
+    # Phase Completion
+    print("│ Phase Completion:")
+    for phase, check in results["phase_checks"].items():
+        status = "✅" if check["completed"] else "❌"
+        print(f"│   {status} {phase}")
+
+    # Data Integrity
+    print("│ Data Integrity (Problem 3):")
+    for agent, check in results["data_integrity"].items():
+        if check.get("file_exists"):
+            save_status = "✅" if not check.get("save_failed") else "⚠️"
+            print(f"│   {save_status} {agent}: {check['items_count']} items, {check['checkpoints_count']} checkpoints")
+        else:
+            print(f"│   ❌ {agent}: File not found")
+
+    # Time Tracking
+    print("│ Time Tracking (Problem 1):")
+    for agent, check in results["time_tracking"].items():
+        if check.get("file_exists"):
+            tracking = "✅" if check["has_time_tracking"] else "⚠️"
+            accelerate = "⚡" if check.get("entered_accelerate_mode") else ""
+            print(f"│   {tracking} {agent}: {check['checkpoints_with_time']} timed checkpoints {accelerate}")
+        else:
+            print(f"│   ❌ {agent}: File not found")
+
+    # Output Quality
+    print("│ Output Detection (Problem 4):")
+    intent = "✅" if results["output_quality"].get("intent_detected") else "❌"
+    print(f"│   {intent} User Intent Detection")
+
+    custom_outputs = [k for k, v in results["output_quality"].items() if k.startswith("has_") and v]
+    if custom_outputs:
+        print(f"│   ✅ Custom Outputs: {', '.join([co.replace('has_', '') for co in custom_outputs])}")
+    else:
+        print("│   ℹ️  No custom outputs detected")
+
+    print("└" + "─" * 58 + "┘")
+```
+
+### 问题诊断表 / Issue Diagnosis Table
+
+| 问题 | 检查方法 | 根因 | 解决方案 |
+|------|---------|------|---------|
+| Subagent 无限卡住 | 检查 `entered_accelerate_mode` | 缺少时间超时协议 | 添加 Step 2.25: Time-Aware Tool Timeout |
+| 数据未记录 | 检查 `save_failed` 或文件不存在 | `_save()` 无错误处理 | 使用原子写入 + 错误日志 |
+| 未按时间续传 | 检查 `time_status` != "time_critical" | Phase 1.1 未执行 | 实现 check_minimum_requirements + 续传逻辑 |
+| 报告格式未检测 | 检查 `intent_detected` = False | Phase -0.5 未执行 | 添加 detect_user_intent() 调用 |
+
+---
+
 **⏱️ Time Re-allocation Rules (NO user confirmation - automatic)**:
 - 基于实际 wall-clock 时间，不请求用户确认
 - 如果 phases 完成 early → 自动将剩余时间 re-allocate 到 final phases
@@ -703,6 +891,82 @@ python "tools\memory_graph_cli.py" --stats
 ---
 
 ## Phase-by-Phase Execution / 分阶段执行
+
+### Phase -0.5: User Intent Detection (NEW - v9.3)
+
+**目的**: 在开始研究前，自动检测用户查询中隐含的输出格式需求。
+
+```python
+def detect_user_intent(user_query: str) -> dict:
+    """
+    检测用户意图和期望的输出格式
+
+    Returns:
+        intent: {
+            "output_formats": ["blog_post", "summary"],
+            "research_depth": "standard" | "deep" | "quick",
+            "target_audience": "general" | "technical" | "academic",
+            "task_type": str or None
+        }
+    """
+    import re
+
+    query_lower = user_query.lower()
+
+    intent = {
+        "output_formats": [],
+        "research_depth": "standard",
+        "target_audience": "general",
+        "task_type": None
+    }
+
+    # 检测输出格式关键词
+    format_keywords = {
+        "blog_post": ["博客", "blog", "article", "写一篇", "文章"],
+        "slide_deck": ["幻灯片", "slide", "ppt", "presentation", "演示", "slides"],
+        "code_examples": ["代码", "code", "示例", "tutorial", "怎么用", "example"],
+        "summary": ["摘要", "summary", "总结", "简短", "概要"],
+        "comparison": ["对比", "comparison", "区别", "vs", "versus", "比较"],
+        "proposal": ["提案", "proposal", "建议", "方案"],
+        "json_format": ["json", "api", "format"],
+    }
+
+    for format_type, keywords in format_keywords.items():
+        if any(kw in query_lower for kw in keywords):
+            intent["output_formats"].append(format_type)
+
+    # 检测深度需求
+    if any(kw in query_lower for kw in ["深入", "详细", "全面", "comprehensive", "deep"]):
+        intent["research_depth"] = "deep"
+    elif any(kw in query_lower for kw in ["快速", "简单", "简要", "quick", "brief"]):
+        intent["research_depth"] = "quick"
+
+    # 检测目标受众
+    if any(kw in query_lower for kw in ["学术", "论文", "research", "scholarly"]):
+        intent["target_audience"] = "academic"
+    elif any(kw in query_lower for kw in ["工程师", "开发", "developer", "engineering"]):
+        intent["target_audience"] = "technical"
+
+    # 确定主要任务类型（用于 Phase 2e）
+    if intent["output_formats"]:
+        intent["task_type"] = intent["output_formats"][0]
+
+    return intent
+
+
+# 使用示例
+user_intent = detect_user_intent(user_query)
+if user_intent["output_formats"]:
+    print(f"[INTENT DETECTED] User wants: {user_intent['output_formats']}")
+    print(f"[INTENT] Research depth: {user_intent['research_depth']}")
+    print(f"[INTENT] Auto-trigger Phase 2e: task_handle")
+```
+
+**决策逻辑**:
+- 如果检测到输出格式 → 自动在 Phase 2e 触发 task_handle
+- 如果没有检测到 → 默认生成综合报告 + 文献综述
+
+---
 
 ### Phase -1: Performance Prediction / 性能预测
 
@@ -1416,25 +1680,54 @@ OUTPUT: research_data/link_validation_output.json"""
 
 ---
 
-### Phase 2e: Task Handler / 定制任务处理 (Optional)
+### Phase 2e: Task Handler / 定制任务处理 (Auto-Detected - v9.3)
+
+**重要更新**: Phase 2e 现在基于 Phase -0.5 的意图检测自动触发，而非仅限于"Optional"。
 
 ```python
-user_task = parse_user_task(original_query)
-IF user_task EXISTS:
+# Phase -0.5 已经检测了用户意图
+user_intent = detect_user_intent(original_query)
+
+# Phase 2e: 根据检测到的意图自动执行
+if user_intent["output_formats"]:
+    # 用户隐含或明确指定了输出格式
     Task(
         subagent_type="task_handle",
         prompt=f"""Complete the following task based on research results:
 
-USER TASK: {user_task}
+USER QUERY: {original_query}
+DETECTED INTENT: {user_intent}
 INPUT_REPORTS:
 - research_output/{sanitized_topic}_comprehensive_report.md
 - research_output/{sanitized_topic}_literature_review.md
 
-OUTPUT: research_output/{sanitized_topic}_{task_type}.md"""
+OUTPUT: research_output/{sanitized_topic}_{user_intent['task_type']}.md
+
+Generate output in the detected format: {user_intent['output_formats']}
+Target audience: {user_intent['target_audience']}
+Research depth: {user_intent['research_depth']}
+"""
     )
+else:
+    # 未检测到特定格式，跳过 task_handle
+    print("[Phase 2e] No custom output format detected, skipping task_handle")
 ```
 
-**支持的输出格式**: Blog Post, Slide Deck, Code Examples, Summary, JSON for API, Comparison Table, Technical Proposal, Custom
+**支持的输出格式**:
+| 格式 | 触发关键词 | 输出文件 |
+|------|-----------|---------|
+| `blog_post` | "博客", "blog", "文章", "写一篇" | `{topic}_blog_post.md` |
+| `slide_deck` | "幻灯片", "slide", "ppt", "presentation" | `{topic}_slide_deck.md` |
+| `code_examples` | "代码", "code", "示例", "tutorial", "怎么用" | `{topic}_code_examples.md` |
+| `summary` | "摘要", "summary", "总结", "简短" | `{topic}_summary.md` |
+| `comparison` | "对比", "comparison", "区别", "vs" | `{topic}_comparison.md` |
+| `proposal` | "提案", "proposal", "建议", "方案" | `{topic}_proposal.md` |
+| `json_format` | "json", "api", "format" | `{topic}_api_format.json` |
+
+**自动触发示例**:
+- "深度研究 LangGraph，最后写一篇博客" → 检测到 `blog_post` → 自动执行 task_handle
+- "AutoGen vs CrewAI 对比" → 检测到 `comparison` → 自动执行 task_handle
+- "帮我整理代码示例" → 检测到 `code_examples` → 自动执行 task_handle
 
 ---
 

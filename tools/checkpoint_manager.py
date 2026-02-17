@@ -371,12 +371,64 @@ class CheckpointManager:
         return f"Final checkpoint created: {final_checkpoint['checkpoint_id']}"
 
     def _save(self):
-        """Save to file."""
+        """
+        Save to file with atomic write and error handling (v9.3).
+
+        Uses atomic write pattern (write to temp, then rename) to prevent
+        data corruption. Includes validation and error logging to metadata.
+
+        Returns:
+            bool: True if save succeeded, False otherwise
+        """
         output_path = Path(self.output_file)
         output_path.parent.mkdir(parents=True, exist_ok=True)
 
-        with open(output_path, 'w', encoding='utf-8') as f:
-            json.dump(self.data, f, ensure_ascii=False, indent=2)
+        try:
+            # Step 1: Write to temporary file
+            temp_path = output_path.with_suffix('.tmp')
+            with open(temp_path, 'w', encoding='utf-8') as f:
+                json.dump(self.data, f, ensure_ascii=False, indent=2)
+
+            # Step 2: Verify the temp file is valid JSON
+            with open(temp_path, 'r', encoding='utf-8') as f:
+                json.load(f)  # Raises JSONDecodeError if invalid
+
+            # Step 3: Atomic rename (overwrites target if exists)
+            temp_path.replace(output_path)
+
+            # Clear any previous error from metadata
+            if "last_error" in self.data.get("subagent_metadata", {}):
+                self.data["subagent_metadata"].pop("last_error", None)
+
+            return True
+
+        except (IOError, OSError, json.JSONDecodeError) as e:
+            # Log error to metadata for debugging
+            error_info = {
+                "timestamp": datetime.now().isoformat(),
+                "error_type": type(e).__name__,
+                "error_message": str(e),
+                "file": str(output_path),
+                "checkpoint_count": self.checkpoint_count,
+                "items_processed": self.items_processed
+            }
+
+            # Initialize metadata if needed
+            if "subagent_metadata" not in self.data:
+                self.data["subagent_metadata"] = {}
+
+            self.data["subagent_metadata"]["last_error"] = error_info
+            self.data["subagent_metadata"]["save_failed"] = True
+
+            # Attempt to save error info to a separate backup file
+            try:
+                backup_path = output_path.with_suffix('.backup.json')
+                with open(backup_path, 'w', encoding='utf-8') as f:
+                    json.dump(self.data, f, ensure_ascii=False, indent=2)
+            except Exception:
+                pass  # Best effort backup
+
+            return False
 
     def list_checkpoints(self) -> List[str]:
         """List all checkpoints for this agent."""
@@ -565,6 +617,83 @@ def get_latest_checkpoint(agent_type: str) -> Optional[Dict[str, Any]]:
             return json.load(f)
     except (json.JSONDecodeError, IOError):
         return None
+
+
+def check_minimum_requirements(output_file: str, agent_type: str) -> tuple[bool, Dict[str, Any]]:
+    """
+    Check if subagent output meets minimum requirements (v9.3).
+
+    Args:
+        output_file: Path to the agent's output JSON file
+        agent_type: Type of agent (academic-researcher, github-watcher, community-listener)
+
+    Returns:
+        Tuple of (is_complete, remaining_requirements):
+        - is_complete: True if all minimum requirements are met
+        - remaining_requirements: Dict with keys that are not yet satisfied
+
+    Example:
+        >>> is_complete, remaining = check_minimum_requirements(
+        ...     "research_data/academic_researcher_output.json",
+        ...     "academic-researcher"
+        ... )
+        >>> if not is_complete:
+        ...     print(f"Still need: {remaining}")
+    """
+    from pathlib import Path
+
+    output_path = Path(output_file)
+    if not output_path.exists():
+        return False, {"error": "Output file not found"}
+
+    try:
+        with open(output_path, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+    except (json.JSONDecodeError, IOError) as e:
+        return False, {"error": f"Failed to read output: {str(e)}"}
+
+    # Define minimum requirements by agent type
+    MINIMUM_REQUIREMENTS = {
+        "academic-researcher": {
+            "papers_analyzed": 5,
+            "key_papers": 3
+        },
+        "github-watcher": {
+            "projects_analyzed": 8,
+            "key_projects": 4
+        },
+        "community-listener": {
+            "threads_analyzed": 15,
+            "consensus_points": 3
+        }
+    }
+
+    requirements = MINIMUM_REQUIREMENTS.get(agent_type, {})
+    if not requirements:
+        return True, {}  # No requirements defined for this agent type
+
+    findings = data.get("research_findings", {})
+    items = data.get("items", [])
+    remaining = {}
+
+    for key, min_value in requirements.items():
+        # Check in findings first, fall back to items count
+        current_value = findings.get(key, 0)
+        if current_value == 0 and key.startswith("papers_"):
+            current_value = len(items)
+        if current_value == 0 and key.startswith("projects_"):
+            current_value = len(items)
+        if current_value == 0 and key.startswith("threads_"):
+            current_value = len(items)
+
+        if current_value < min_value:
+            remaining[key] = {
+                "current": current_value,
+                "required": min_value,
+                "remaining": min_value - current_value
+            }
+
+    return len(remaining) == 0, remaining
 
 
 def get_agent_progress(agent_type: str) -> Dict[str, Any]:
