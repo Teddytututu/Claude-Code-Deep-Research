@@ -696,6 +696,181 @@ def check_minimum_requirements(output_file: str, agent_type: str) -> tuple[bool,
     return len(remaining) == 0, remaining
 
 
+def check_continuation_needed(output_file: str, agent_type: str) -> Dict[str, Any]:
+    """
+    Check if subagent output indicates continuation is needed (v9.5 - CRITICAL).
+
+    This is the main function for orchestrators to detect if a subagent
+    needs to be relaunched with continuation.
+
+    Args:
+        output_file: Path to the agent's output JSON file
+        agent_type: Type of agent (academic-researcher, github-watcher, community-listener)
+
+    Returns:
+        Dict with:
+        - needs_continuation: bool - Whether to relaunch the agent
+        - reason: str - Why continuation is needed
+        - remaining_requirements: dict - What's still needed
+        - checkpoint_file: str - Path to latest checkpoint
+        - last_checkpoint_number: int - Checkpoint number for context
+
+    Example:
+        >>> result = check_continuation_needed(
+        ...     "research_data/academic_researcher_output.json",
+        ...     "academic-researcher"
+        ... )
+        >>> if result["needs_continuation"]:
+        ...     print(f"Relaunch needed: {result['reason']}")
+        ...     print(f"From checkpoint: {result['checkpoint_file']}")
+    """
+    from pathlib import Path
+
+    output_path = Path(output_file)
+    if not output_path.exists():
+        return {
+            "needs_continuation": False,
+            "reason": "no_output_file",
+            "remaining_requirements": {},
+            "checkpoint_file": "",
+            "last_checkpoint_number": 0
+        }
+
+    try:
+        with open(output_path, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+    except (json.JSONDecodeError, IOError) as e:
+        return {
+            "needs_continuation": False,
+            "reason": f"read_error: {str(e)}",
+            "remaining_requirements": {},
+            "checkpoint_file": "",
+            "last_checkpoint_number": 0
+        }
+
+    metadata = data.get("subagent_metadata", {})
+
+    # Check 1: Explicit continuation signal from subagent
+    if metadata.get("needs_continuation", False):
+        return {
+            "needs_continuation": True,
+            "reason": metadata.get("continuation_reason", "subagent_requested"),
+            "remaining_requirements": metadata.get("remaining_requirements", {}),
+            "checkpoint_file": metadata.get("last_checkpoint", ""),
+            "last_checkpoint_number": metadata.get("last_checkpoint_number", 0)
+        }
+
+    # Check 2: Status indicates incomplete
+    status = metadata.get("status", "unknown")
+    if status in ["incomplete_timeout", "incomplete_error", "interrupted"]:
+        checkpoints = metadata.get("checkpoints", [])
+        last_checkpoint = checkpoints[-1] if checkpoints else {}
+
+        return {
+            "needs_continuation": True,
+            "reason": f"status_{status}",
+            "remaining_requirements": metadata.get("remaining_requirements", {}),
+            "checkpoint_file": f"research_data/checkpoints/{agent_type.replace('-', '_')}_{last_checkpoint.get('checkpoint_number', 'FINAL')}.json",
+            "last_checkpoint_number": last_checkpoint.get("checkpoint_number", 0)
+        }
+
+    # Check 3: Minimum requirements not met
+    is_complete, remaining = check_minimum_requirements(output_file, agent_type)
+
+    if not is_complete:
+        # Find latest checkpoint
+        checkpoint_dir = Path("research_data/checkpoints")
+        pattern = f"{agent_type.replace('-', '_')}_*.json"
+        checkpoints = sorted(checkpoint_dir.glob(pattern)) if checkpoint_dir.exists() else []
+        latest_checkpoint = str(checkpoints[-1]) if checkpoints else ""
+
+        # Get checkpoint number from metadata
+        checkpoints_meta = metadata.get("checkpoints", [])
+        last_num = checkpoints_meta[-1].get("checkpoint_number", 0) if checkpoints_meta else 0
+
+        return {
+            "needs_continuation": True,
+            "reason": "minimum_requirements_not_met",
+            "remaining_requirements": remaining,
+            "checkpoint_file": latest_checkpoint,
+            "last_checkpoint_number": last_num
+        }
+
+    return {
+        "needs_continuation": False,
+        "reason": "complete",
+        "remaining_requirements": {},
+        "checkpoint_file": "",
+        "last_checkpoint_number": 0
+    }
+
+
+def write_continuation_signal(
+    output_file: str,
+    agent_type: str,
+    reason: str,
+    remaining_requirements: Dict[str, Any],
+    checkpoint_manager: Optional['CheckpointManager'] = None
+) -> bool:
+    """
+    Write continuation signal to subagent output (v9.5 - CRITICAL).
+
+    Call this when a subagent is interrupted or cannot complete.
+
+    Args:
+        output_file: Path to output file
+        agent_type: Type of agent
+        reason: Why continuation is needed ("max_turns_reached", "timeout", etc.)
+        remaining_requirements: What's still needed
+        checkpoint_manager: Optional CheckpointManager for checkpoint info
+
+    Returns:
+        True if signal was written successfully
+    """
+    from pathlib import Path
+
+    output_path = Path(output_file)
+
+    try:
+        # Load existing data
+        if output_path.exists():
+            with open(output_path, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+        else:
+            data = {
+                "subagent_metadata": {"agent_type": agent_type},
+                "research_findings": {},
+                "items": []
+            }
+
+        # Get checkpoint info
+        last_checkpoint = ""
+        last_checkpoint_number = 0
+        if checkpoint_manager:
+            checkpoints = checkpoint_manager.data.get("subagent_metadata", {}).get("checkpoints", [])
+            if checkpoints:
+                last_checkpoint_number = checkpoints[-1].get("checkpoint_number", 0)
+                last_checkpoint = f"research_data/checkpoints/{agent_type.replace('-', '_')}_{last_checkpoint_number:03d}.json"
+
+        # Update metadata with continuation signal
+        data["subagent_metadata"]["needs_continuation"] = True
+        data["subagent_metadata"]["continuation_reason"] = reason
+        data["subagent_metadata"]["remaining_requirements"] = remaining_requirements
+        data["subagent_metadata"]["last_checkpoint"] = last_checkpoint
+        data["subagent_metadata"]["last_checkpoint_number"] = last_checkpoint_number
+        data["subagent_metadata"]["status"] = "incomplete_" + reason
+
+        # Write back
+        with open(output_path, 'w', encoding='utf-8') as f:
+            json.dump(data, f, indent=2, ensure_ascii=False)
+
+        return True
+
+    except Exception as e:
+        print(f"Error writing continuation signal: {e}")
+        return False
+
+
 def get_agent_progress(agent_type: str) -> Dict[str, Any]:
     """
     Get current progress of an agent (v9.2).
@@ -934,21 +1109,176 @@ def calculate_time_allocation(
     }
 
 
-def calculate_max_turns(per_agent_timeout_seconds: int, seconds_per_turn: int = 120) -> int:
+def calculate_max_turns(
+    per_agent_timeout_seconds: int,
+    seconds_per_turn: int = 120,
+    safety_buffer: float = 0.8
+) -> int:
     """
-    Calculate max_turns from time budget (v9.3).
+    Calculate max_turns from time budget with safety buffer (v9.5).
 
-    Assumes average 2 minutes (120 seconds) per turn.
-    Minimum 10 turns to ensure meaningful work.
+    CRITICAL: Uses 80% of theoretical value to ensure time for checkpoint saving.
 
     Args:
         per_agent_timeout_seconds: Time budget per agent in seconds
         seconds_per_turn: Average seconds per turn (default 120)
+        safety_buffer: Safety buffer factor (default 0.8 = 80%)
 
     Returns:
-        Maximum number of turns for the agent
+        Safe maximum number of turns for the agent
+
+    Example:
+        48 minutes = 2880 seconds
+        theoretical = 2880 / 120 = 24 turns
+        safe = 24 * 0.8 = 19 turns (reserves ~5 turns for cleanup)
     """
-    return max(10, per_agent_timeout_seconds // seconds_per_turn)
+    theoretical_turns = per_agent_timeout_seconds // seconds_per_turn
+    safe_turns = int(theoretical_turns * safety_buffer)
+    return max(5, safe_turns)  # Minimum 5 turns for meaningful work
+
+
+def check_subagent_timeout(
+    start_time_iso: str,
+    timeout_seconds: int,
+    checkpoint_interval_seconds: int = 300
+) -> Dict[str, Any]:
+    """
+    Check if subagent has exceeded time budget (v9.5 - CRITICAL).
+
+    Should be called at EVERY checkpoint to prevent infinite hangs.
+
+    Args:
+        start_time_iso: Start time in ISO format
+        timeout_seconds: Total time budget in seconds
+        checkpoint_interval_seconds: Interval between checkpoints
+
+    Returns:
+        Dict with timeout status and recommended action:
+        - is_timeout: True if exceeded budget
+        - should_save_and_exit: True if should immediately save and exit
+        - remaining_seconds: Time remaining
+        - action: "continue" | "accelerate" | "save_and_exit"
+        - message: Human-readable status message
+    """
+    try:
+        start_time = datetime.fromisoformat(start_time_iso)
+    except (ValueError, TypeError):
+        return {
+            "is_timeout": False,
+            "should_save_and_exit": False,
+            "remaining_seconds": timeout_seconds,
+            "action": "continue",
+            "message": "⚠️ Invalid start time, proceeding with caution"
+        }
+
+    elapsed = (datetime.now() - start_time).total_seconds()
+    remaining = timeout_seconds - elapsed
+
+    if remaining <= 0:
+        return {
+            "is_timeout": True,
+            "should_save_and_exit": True,
+            "remaining_seconds": 0,
+            "action": "save_and_exit",
+            "message": "⏰ TIMEOUT: Must save checkpoint and exit immediately"
+        }
+    elif remaining < checkpoint_interval_seconds:
+        return {
+            "is_timeout": False,
+            "should_save_and_exit": True,
+            "remaining_seconds": int(remaining),
+            "action": "save_and_exit",
+            "message": f"⏰ WARNING: Only {int(remaining)}s left - save checkpoint now"
+        }
+    elif remaining < 300:  # 5 minutes
+        return {
+            "is_timeout": False,
+            "should_save_and_exit": False,
+            "remaining_seconds": int(remaining),
+            "action": "accelerate",
+            "message": f"⚡ ACCELERATE: {int(remaining)}s remaining - enter rapid mode"
+        }
+    else:
+        return {
+            "is_timeout": False,
+            "should_save_and_exit": False,
+            "remaining_seconds": int(remaining),
+            "action": "continue",
+            "message": f"✅ On track: {int(remaining // 60)}m {int(remaining % 60)}s remaining"
+        }
+
+
+def should_execute_tool(
+    timeout_check: Dict[str, Any],
+    tool_type: str,
+    estimated_duration_seconds: int = 60
+) -> tuple[bool, str]:
+    """
+    Decide whether to execute a tool based on remaining time (v9.5).
+
+    Args:
+        timeout_check: Result from check_subagent_timeout()
+        tool_type: Type of tool ("download_paper", "search", "full_analysis", etc.)
+        estimated_duration_seconds: Estimated time for tool execution
+
+    Returns:
+        Tuple of (should_execute, reason)
+    """
+    remaining = timeout_check.get("remaining_seconds", 0)
+    action = timeout_check.get("action", "continue")
+
+    # Timeout or about to timeout - skip ALL tools
+    if action == "save_and_exit":
+        return False, "TIMEOUT: Skip all tools, save checkpoint immediately"
+
+    # Accelerate mode - skip expensive operations
+    if action == "accelerate":
+        expensive_tools = {
+            "download_paper": "Skip full-text download, use abstract only",
+            "full_analysis": "Skip deep analysis, quick summary only",
+            "citation_chain": "Skip deep citation tracking",
+            "deep_search": "Skip exhaustive search",
+            "read_paper": "Skip full paper reading"
+        }
+        if tool_type in expensive_tools:
+            return False, f"ACCELERATE: {expensive_tools[tool_type]}"
+
+    # Check if enough time for estimated duration (need 1.5x buffer)
+    if remaining < estimated_duration_seconds * 1.5:
+        return False, f"INSUFFICIENT_TIME: Need {estimated_duration_seconds}s, have {remaining}s"
+
+    return True, "OK"
+
+
+def get_accelerate_mode_instructions() -> str:
+    """
+    Get instructions for accelerate mode (v9.5).
+
+    Returns instructions for subagents when time is critical.
+    """
+    return """
+⚡ ACCELERATE MODE INSTRUCTIONS
+
+When remaining time < 5 minutes, follow these rules:
+
+1. SKIP full-text downloads - use abstracts only
+2. SKIP deep citation chains - track direct citations only
+3. SKIP exhaustive searches - use top 5 results only
+4. BATCH all tool calls together
+5. MINIMIZE output - essential fields only
+6. SAVE checkpoint every 2 items processed
+
+TOOL PRIORITY (skip these):
+- download_paper → Use abstract
+- read_paper → Skip
+- citation_chain → Skip
+- deep_analysis → Quick summary only
+
+KEEP DOING:
+- search_papers (top results only)
+- add_item (minimal fields)
+- write_checkpoint (frequent)
+"""
 
 
 def generate_time_budget_string(time_allocation: Dict[str, Any]) -> str:
