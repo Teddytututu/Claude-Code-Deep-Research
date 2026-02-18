@@ -1,5 +1,5 @@
 """
-Multi-Graph Agentic Memory Architecture (MAGMA) v9.0
+Multi-Graph Agentic Memory Architecture (MAGMA) v10.0
 
 Based on: MAGMA: Multi-Graph Agentic Memory Architecture (arXiv:2601.03236)
 
@@ -8,11 +8,16 @@ This module implements the complete memory system with three layers:
 2. TemporalMemory: Time-series tracking of research sessions and evolution
 3. EpisodicMemory: Context windows for active and related sessions
 
+v10.0 Updates:
+- Added VectorStore integration for semantic search
+- Optional ChromaDB backend for persistent storage
+- Enhanced Finding class with embedding support
+
 Author: Deep Research System
-Date: 2026-02-09
+Date: 2026-02-18
 """
 
-from typing import Dict, List, Any, Optional, Tuple
+from typing import Dict, List, Any, Optional, Tuple, Literal
 from dataclasses import dataclass, field
 from enum import Enum
 import json
@@ -30,6 +35,13 @@ from memory_graph import (
     GraphEdge,
     CitationNetwork
 )
+
+# Optional VectorStore import
+try:
+    from vector_store import VectorStore, Document, SearchResult, VectorStoreManager
+    VECTOR_STORE_AVAILABLE = True
+except ImportError:
+    VECTOR_STORE_AVAILABLE = False
 
 
 class MemoryLayer(Enum):
@@ -465,16 +477,30 @@ class MAGMAMemory:
     - SemanticMemory: Knowledge graph
     - TemporalMemory: Time-series tracking
     - EpisodicMemory: Context windows
+    - VectorStore: Semantic search (optional, v10.0+)
 
     Based on: arXiv:2601.03236
+
+    v10.0 Updates:
+    - Added VectorStore integration for semantic search
+    - Support for ChromaDB persistent storage
     """
 
-    def __init__(self, storage_dir: str = "research_data"):
+    def __init__(
+        self,
+        storage_dir: str = "research_data",
+        use_vector_store: bool = True,
+        vector_backend: Literal["memory", "chroma"] = "memory",
+        persist_dir: str = ".chroma"
+    ):
         """
         Initialize MAGMA memory system.
 
         Args:
             storage_dir: Base directory for all memory storage
+            use_vector_store: Whether to enable vector store for semantic search
+            vector_backend: Vector store backend ("memory" or "chroma")
+            persist_dir: Directory for ChromaDB persistence
         """
         self.storage_dir = Path(storage_dir)
         self.storage_dir.mkdir(parents=True, exist_ok=True)
@@ -486,6 +512,22 @@ class MAGMAMemory:
 
         # Load existing episodic contexts
         self.episodic.load_all()
+
+        # Initialize vector store (optional)
+        self.vector_store: Optional[VectorStore] = None
+        self.use_vector_store = use_vector_store and VECTOR_STORE_AVAILABLE
+
+        if self.use_vector_store:
+            try:
+                self.vector_store = VectorStore(
+                    persist_dir=persist_dir,
+                    backend=vector_backend,
+                    collection_name="research_findings"
+                )
+                print(f"[MAGMA] Vector store initialized ({vector_backend} backend)")
+            except Exception as e:
+                print(f"[MAGMA] Warning: Failed to initialize vector store: {e}")
+                self.use_vector_store = False
 
         self._current_session: Optional[str] = None
 
@@ -541,6 +583,10 @@ class MAGMAMemory:
         )
         self.temporal.record_finding(finding)
 
+        # Add to vector store for semantic search
+        if self.vector_store and finding.id:
+            self._add_to_vector_store(finding)
+
         # Update episodic context
         if self._current_session:
             self.episodic.update_context(self._current_session, [paper_data.get("title", "")])
@@ -563,6 +609,10 @@ class MAGMAMemory:
         )
         self.temporal.record_finding(finding)
 
+        # Add to vector store for semantic search
+        if self.vector_store and finding.id:
+            self._add_to_vector_store(finding)
+
         if self._current_session:
             self.episodic.update_context(self._current_session, [project_data.get("name", "")])
 
@@ -584,10 +634,187 @@ class MAGMAMemory:
         )
         self.temporal.record_finding(finding)
 
+        # Add to vector store for semantic search
+        if self.vector_store and finding.id:
+            self._add_to_vector_store(finding)
+
         if self._current_session:
             self.episodic.update_context(self._current_session, [discussion_data.get("title", "")])
 
         return finding.id
+
+    def _add_to_vector_store(self, finding: Finding) -> None:
+        """
+        Add a finding to the vector store for semantic search.
+
+        Args:
+            finding: The finding to add
+        """
+        if not self.vector_store:
+            return
+
+        # Convert finding content to searchable text
+        content_text = self._finding_to_text(finding)
+
+        doc = Document(
+            id=finding.id,
+            content=content_text,
+            metadata={
+                "type": finding.type,
+                "agent_type": finding.agent_type,
+                "session_id": finding.session_id,
+                "timestamp": finding.timestamp,
+                "confidence": finding.confidence,
+                "source_url": finding.source_url
+            }
+        )
+
+        try:
+            self.vector_store.add_finding(doc)
+        except Exception as e:
+            print(f"[MAGMA] Warning: Failed to add to vector store: {e}")
+
+    def _finding_to_text(self, finding: Finding) -> str:
+        """
+        Convert a finding to searchable text.
+
+        Args:
+            finding: The finding to convert
+
+        Returns:
+            Searchable text representation
+        """
+        content = finding.content
+        parts = []
+
+        if finding.type == "academic_paper":
+            parts.extend([
+                content.get("title", ""),
+                content.get("abstract", ""),
+                " ".join(content.get("authors", [])),
+                " ".join(content.get("categories", [])),
+                content.get("summary", "")
+            ])
+        elif finding.type == "github_project":
+            parts.extend([
+                content.get("name", ""),
+                content.get("description", ""),
+                content.get("language", ""),
+                " ".join(content.get("topics", [])),
+                content.get("architecture_description", "")
+            ])
+        elif finding.type == "community_discussion":
+            parts.extend([
+                content.get("title", ""),
+                content.get("summary", ""),
+                " ".join(q.get("quote", "") for q in content.get("key_quotes", [])),
+                content.get("platform", "")
+            ])
+        else:
+            # Generic fallback
+            parts.append(str(content))
+
+        return " ".join(p for p in parts if p)
+
+    def semantic_search(
+        self,
+        query: str,
+        n_results: int = 10,
+        finding_type: Optional[str] = None
+    ) -> List[Tuple[Finding, float]]:
+        """
+        Perform semantic search across all findings.
+
+        Args:
+            query: Search query
+            n_results: Maximum number of results
+            finding_type: Filter by finding type (optional)
+
+        Returns:
+            List of (Finding, score) tuples
+        """
+        if not self.vector_store:
+            print("[MAGMA] Vector store not available, using keyword search")
+            return self._keyword_search(query, n_results, finding_type)
+
+        # Build metadata filter
+        where_filter = None
+        if finding_type:
+            where_filter = {"type": finding_type}
+
+        # Perform search
+        results = self.vector_store.search(
+            query=query,
+            n_results=n_results,
+            where=where_filter
+        )
+
+        # Convert to Finding objects
+        findings_with_scores = []
+        for result in results:
+            # Find matching finding in temporal memory
+            matching_finding = None
+            for f in self.temporal._finding_timeline:
+                if f.id == result.document.id:
+                    matching_finding = f
+                    break
+
+            if matching_finding:
+                findings_with_scores.append((matching_finding, result.score))
+            else:
+                # Create a temporary Finding from search result
+                temp_finding = Finding(
+                    id=result.document.id,
+                    type=result.document.metadata.get("type", "unknown"),
+                    content={"search_content": result.document.content},
+                    timestamp=result.document.metadata.get("timestamp", ""),
+                    session_id=result.document.metadata.get("session_id", ""),
+                    agent_type=result.document.metadata.get("agent_type", ""),
+                    confidence=result.document.metadata.get("confidence", 0.5),
+                    source_url=result.document.metadata.get("source_url", "")
+                )
+                findings_with_scores.append((temp_finding, result.score))
+
+        return findings_with_scores
+
+    def _keyword_search(
+        self,
+        query: str,
+        n_results: int = 10,
+        finding_type: Optional[str] = None
+    ) -> List[Tuple[Finding, float]]:
+        """
+        Fallback keyword search when vector store is not available.
+
+        Args:
+            query: Search query
+            n_results: Maximum number of results
+            finding_type: Filter by finding type
+
+        Returns:
+            List of (Finding, score) tuples
+        """
+        query_words = set(query.lower().split())
+        results = []
+
+        for finding in self.temporal._finding_timeline:
+            # Filter by type if specified
+            if finding_type and finding.type != finding_type:
+                continue
+
+            # Get searchable text
+            text = self._finding_to_text(finding).lower()
+            text_words = set(text.split())
+
+            # Calculate simple overlap score
+            overlap = len(query_words & text_words)
+            if overlap > 0:
+                score = overlap / max(len(query_words), 1)
+                results.append((finding, score))
+
+        # Sort by score and limit
+        results.sort(key=lambda x: x[1], reverse=True)
+        return results[:n_results]
 
     def record_checkpoint(self, phase: str, metrics: Dict[str, Any]) -> None:
         """

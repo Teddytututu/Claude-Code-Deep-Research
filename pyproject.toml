@@ -1,0 +1,103 @@
+[project]
+name = "deep-research-system"
+version = "10.0.0"
+description = "Multi-Agent Deep Research System with MAGMA Memory Architecture"
+readme = "README.md"
+requires-python = ">=3.11"
+license = {text = "MIT"}
+authors = [
+    {name = "Deep Research System"}
+]
+keywords = ["multi-agent", "research", "llm", "mcp", "magma"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+
+# Core dependencies - minimal, no external dependencies required for basic operation
+dependencies = []
+
+[project.optional-dependencies]
+# Configuration management
+config = [
+    "pydantic>=2.0.0",
+    "pydantic-settings>=2.0.0",
+    "python-dotenv>=1.0.0",
+]
+
+# Vector database and embeddings
+vector = [
+    "chromadb>=0.4.0",
+    "sentence-transformers>=2.2.0",
+]
+
+# Visualization
+viz = [
+    "pyvis>=0.3.0",
+    "matplotlib>=3.5.0",
+    "networkx>=3.1",
+    "plotly>=5.18.0",
+    "kaleido>=0.2.0",  # For static image export
+]
+
+# Async utilities
+async = [
+    "anyio>=4.0.0",
+    "aiolimiter>=1.1.0",
+]
+
+# All optional dependencies
+all = [
+    "deep-research-system[config,vector,viz,async]",
+]
+
+# Development dependencies
+dev = [
+    "pytest>=7.0.0",
+    "pytest-asyncio>=0.21.0",
+    "black>=23.0.0",
+    "ruff>=0.1.0",
+    "mypy>=1.0.0",
+]
+
+[project.scripts]
+deep-research = "tools.research_orchestrator:main"
+magma-memory = "tools.memory_system:main"
+
+[project.urls]
+Homepage = "https://github.com/deep-research/system"
+Documentation = "https://github.com/deep-research/system#readme"
+Repository = "https://github.com/deep-research/system"
+
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["tools*"]
+
+[tool.black]
+line-length = 100
+target-version = ["py311", "py312"]
+
+[tool.ruff]
+line-length = 100
+select = ["E", "F", "W", "I", "N", "UP", "B", "C4"]
+ignore = ["E501"]
+
+[tool.mypy]
+python_version = "3.11"
+warn_return_any = true
+warn_unused_configs = true
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]

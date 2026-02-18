@@ -50,10 +50,18 @@ try:
 except ImportError:
     MATPLOTLIB_AVAILABLE = False
 
+try:
+    import plotly.graph_objects as go
+    import plotly.express as px
+    PLOTLY_AVAILABLE = True
+except ImportError:
+    PLOTLY_AVAILABLE = False
+
 
 class VisualizationFormat(Enum):
     """Output visualization formats"""
     HTML = "html"  # Interactive HTML (pyvis)
+    PLOTLY = "plotly"  # Interactive HTML (Plotly)
     PNG = "png"  # Static PNG image
     SVG = "svg"  # Static SVG image
     MERMAID = "mermaid"  # Mermaid diagram string
@@ -193,13 +201,15 @@ class CitationNetworkVisualizer(BaseVisualizer):
 
         Args:
             output_path: Output file path
-            format: Output format (HTML, PNG, SVG, MERMAID)
+            format: Output format (HTML, PLOTLY, PNG, SVG, MERMAID)
 
         Returns:
             Path to generated file
         """
         if format == VisualizationFormat.HTML:
             return self._render_html(output_path)
+        elif format == VisualizationFormat.PLOTLY:
+            return self._render_plotly(output_path)
         elif format in (VisualizationFormat.PNG, VisualizationFormat.SVG):
             return self._render_image(output_path, format.value)
         elif format == VisualizationFormat.MERMAID:
@@ -323,6 +333,127 @@ class CitationNetworkVisualizer(BaseVisualizer):
 
         with open(output_path, 'w', encoding='utf-8') as f:
             f.write(html_content)
+
+        return output_path
+
+    def _render_plotly(self, output_path: str) -> str:
+        """
+        Render interactive HTML using Plotly.
+
+        Provides an alternative to pyvis with better export options
+        and more customization capabilities.
+        """
+        if not PLOTLY_AVAILABLE or not NETWORKX_AVAILABLE:
+            print("Warning: plotly or networkx not available. Generating fallback HTML.")
+            return self._render_fallback_html(output_path)
+
+        # Build graph if not already built
+        if not self._graph:
+            return self._render_fallback_html(output_path)
+
+        # Calculate layout
+        try:
+            # Use spring layout for better visualization
+            pos = nx.spring_layout(self._graph, k=2, iterations=50, seed=42)
+        except Exception:
+            pos = nx.random_layout(self._graph, seed=42)
+
+        # Extract edge positions
+        edge_x, edge_y = [], []
+        for edge in self._graph.edges():
+            x0, y0 = pos[edge[0]]
+            x1, y1 = pos[edge[1]]
+            edge_x.extend([x0, x1, None])
+            edge_y.extend([y0, y1, None])
+
+        # Create edge trace
+        edge_trace = go.Scatter(
+            x=edge_x, y=edge_y,
+            line=dict(width=0.5, color='#888'),
+            hoverinfo='none',
+            mode='lines'
+        )
+
+        # Extract node positions and info
+        node_x, node_y = [], []
+        node_text = []
+        node_color = []
+        node_size = []
+
+        for node in self._graph.nodes():
+            x, y = pos[node]
+            node_x.append(x)
+            node_y.append(y)
+
+            # Get node data
+            node_data = self._graph.nodes[node]
+            title = node_data.get("title", node)
+            paper_type = node_data.get("type", "sota")
+            arxiv_id = node_data.get("arxiv_id", "")
+
+            # Create hover text
+            hover_text = f"<b>{title}</b><br>Type: {paper_type}"
+            if arxiv_id:
+                hover_text += f"<br>arXiv: {arxiv_id}"
+            node_text.append(hover_text)
+
+            # Set color and size based on type
+            node_color.append(self._get_color_for_type(paper_type))
+            node_size.append(self._get_size_for_type(paper_type))
+
+        # Create node trace
+        node_trace = go.Scatter(
+            x=node_x, y=node_y,
+            mode='markers+text',
+            text=[self._graph.nodes[n].get("label", n)[:20] for n in self._graph.nodes()],
+            textposition="top center",
+            textfont=dict(size=10),
+            hoverinfo='text',
+            hovertext=node_text,
+            marker=dict(
+                showscale=False,
+                color=node_color,
+                size=node_size,
+                line=dict(width=1, color='#fff')
+            )
+        )
+
+        # Create figure
+        fig = go.Figure(
+            data=[edge_trace, node_trace],
+            layout=go.Layout(
+                title=dict(
+                    text="Citation Network / 引用网络",
+                    font=dict(size=16)
+                ),
+                showlegend=False,
+                hovermode='closest',
+                margin=dict(b=20, l=20, r=20, t=50),
+                xaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
+                yaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
+                plot_bgcolor=self.config.bgcolor,
+                paper_bgcolor=self.config.bgcolor,
+                height=600,
+                # Add legend annotation
+                annotations=[
+                    dict(
+                        text="Legend: 🔴 Root/Foundational | 🔵 SOTA | 🟡 Survey",
+                        showarrow=False,
+                        xref="paper", yref="paper",
+                        x=0.5, y=-0.05,
+                        font=dict(size=10)
+                    )
+                ]
+            )
+        )
+
+        # Add interactive features
+        fig.update_layout(
+            clickmode='event+select'
+        )
+
+        # Save as HTML
+        fig.write_html(output_path, include_plotlyjs='cdn')
 
         return output_path
 
@@ -491,6 +622,8 @@ class CrossDomainVisualizer(BaseVisualizer):
         """Render cross-domain visualization"""
         if format == VisualizationFormat.HTML:
             return self._render_html(output_path)
+        elif format == VisualizationFormat.PLOTLY:
+            return self._render_plotly_cross_domain(output_path)
         elif format == VisualizationFormat.MERMAID:
             return self._render_mermaid(output_path)
         else:
@@ -615,6 +748,139 @@ class CrossDomainVisualizer(BaseVisualizer):
 
         with open(output_path, 'w', encoding='utf-8') as f:
             f.write(html_content)
+
+        return output_path
+
+    def _render_plotly_cross_domain(self, output_path: str) -> str:
+        """
+        Render cross-domain visualization using Plotly.
+
+        Creates an interactive network graph showing relationships
+        between papers, repositories, and community discussions.
+        """
+        if not PLOTLY_AVAILABLE:
+            return self._render_fallback_html(output_path)
+
+        # Build NetworkX graph for layout
+        if not NETWORKX_AVAILABLE:
+            return self._render_fallback_html(output_path)
+
+        import networkx as nx
+
+        G = nx.Graph()
+
+        # Add nodes
+        for node in self.nodes:
+            G.add_node(node["id"], **node)
+
+        # Add edges
+        for edge in self.edges:
+            G.add_edge(edge["source"], edge["target"])
+
+        # Calculate layout
+        if len(G.nodes()) > 0:
+            try:
+                pos = nx.spring_layout(G, k=2, iterations=50, seed=42)
+            except Exception:
+                pos = nx.random_layout(G, seed=42)
+        else:
+            pos = {}
+
+        # Extract edge positions
+        edge_x, edge_y = [], []
+        for edge in self.edges:
+            source, target = edge["source"], edge["target"]
+            if source in pos and target in pos:
+                x0, y0 = pos[source]
+                x1, y1 = pos[target]
+                edge_x.extend([x0, x1, None])
+                edge_y.extend([y0, y1, None])
+
+        # Create edge trace
+        edge_trace = go.Scatter(
+            x=edge_x, y=edge_y,
+            line=dict(width=0.5, color='#888'),
+            hoverinfo='none',
+            mode='lines'
+        )
+
+        # Group nodes by domain for separate traces
+        domain_traces = {}
+        for node in self.nodes:
+            node_id = node["id"]
+            if node_id not in pos:
+                continue
+
+            x, y = pos[node_id]
+            node_type = node.get("type", "unknown")
+
+            if node_type not in domain_traces:
+                domain_traces[node_type] = {
+                    "x": [], "y": [], "text": [], "hover": [], "color": []
+                }
+
+            domain_traces[node_type]["x"].append(x)
+            domain_traces[node_type]["y"].append(y)
+            domain_traces[node_type]["text"].append(node.get("label", node_id)[:25])
+            domain_traces[node_type]["color"].append(self._get_color_for_domain(node_type))
+
+            # Build hover text
+            metadata = node.get("metadata", {})
+            hover = f"<b>{node.get('label', node_id)}</b><br>Type: {node_type}"
+            if metadata.get("title"):
+                hover += f"<br>{metadata['title'][:50]}"
+            domain_traces[node_type]["hover"].append(hover)
+
+        # Create traces for each domain
+        traces = [edge_trace]
+        domain_names = {"paper": "Papers", "repo": "Repositories", "community": "Community"}
+
+        for domain_type, data in domain_traces.items():
+            trace = go.Scatter(
+                x=data["x"], y=data["y"],
+                name=domain_names.get(domain_type, domain_type.title()),
+                mode='markers+text',
+                text=data["text"],
+                textposition="top center",
+                textfont=dict(size=9),
+                hoverinfo='text',
+                hovertext=data["hover"],
+                marker=dict(
+                    color=data["color"],
+                    size=15,
+                    line=dict(width=1, color='#fff')
+                )
+            )
+            traces.append(trace)
+
+        # Create figure
+        fig = go.Figure(
+            data=traces,
+            layout=go.Layout(
+                title=dict(
+                    text="Cross-Domain Relationship Network / 跨域关系网络",
+                    font=dict(size=16)
+                ),
+                showlegend=True,
+                legend=dict(
+                    orientation="h",
+                    yanchor="bottom",
+                    y=1.02,
+                    xanchor="right",
+                    x=1
+                ),
+                hovermode='closest',
+                margin=dict(b=20, l=20, r=20, t=60),
+                xaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
+                yaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
+                plot_bgcolor=self.config.bgcolor,
+                paper_bgcolor=self.config.bgcolor,
+                height=650
+            )
+        )
+
+        # Save as HTML
+        fig.write_html(output_path, include_plotlyjs='cdn')
 
         return output_path
 
