@@ -178,7 +178,7 @@ def should_skip_tool(time_assessment, tool_type="general"):
 
     Args:
         time_assessment: 时间评估字典
-        tool_type: 工具类型 (read_thread, deep_analysis, web_reader, general)
+        tool_type: 工具类型 (read_thread, deep_analysis, web-reader, general)
 
     Returns:
         tuple: (should_skip: bool, reason: str, alternative_action: str)
@@ -192,7 +192,7 @@ def should_skip_tool(time_assessment, tool_type="general"):
             return True, "TIME_CRITICAL: Skip full thread reading", "Use search snippet only"
         elif tool_type == "deep_analysis":
             return True, "TIME_CRITICAL: Skip deep sentiment analysis", "Quick sentiment only"
-        elif tool_type == "web_reader":
+        elif tool_type == "web-reader":
             return True, "TIME_CRITICAL: Skip full page fetch", "Use search results only"
         else:
             return True, f"TIME_CRITICAL: Skip {tool_type}", "Use cached data or skip"
@@ -212,7 +212,7 @@ def should_skip_tool(time_assessment, tool_type="general"):
 
 #### 降级策略表
 
-| 剩余时间 | read_thread | deep_analysis | web_reader | action |
+| 剩余时间 | read_thread | deep_analysis | web-reader | action |
 |---------|------------|---------------|------------|--------|
 | < 300s | ❌ 跳过 | ⚡ 快速分类 | ❌ 跳过 | 立即收尾 |
 | 300-600s | ⚡ 仅顶部评论 | ⚡ 快速情感 | ⚡ 仅关键 | 加速模式 |
