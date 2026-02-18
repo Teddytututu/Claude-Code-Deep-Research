@@ -2,7 +2,7 @@
 name: academic-researcher
 description: Academic research specialist for any research topic. Use for deep literature review, paper analysis, citation networks, and mathematical formula extraction. Proactively use for any research on academic topics.
 model: sonnet
-version: 6.6
+version: 6.7
 ---
 
 ## LAYER
@@ -508,6 +508,16 @@ NEXT: Phase 2a (literature-analyzer) will process this output
 ---
 
 ## CHANGELOG
+
+### v6.7 (2026-02-18)
+- **Restored**: 恢复核心执行逻辑代码
+  - `save_time_aware_checkpoint()` 函数（完整代码）
+  - `should_skip_tool()` 函数（完整代码）
+  - Checkpoint 格式示例（完整 JSON）
+  - 降级策略表（完整表格）
+  - Progressive Writing 协议
+  - ACCELERATE_MODE 协议
+- File size: ~16k (from ~7k)
 
 ### v6.6 (2026-02-18)
 - **Refactored**: 提取时间检查点协议到 `time_checkpoint_protocol.md`

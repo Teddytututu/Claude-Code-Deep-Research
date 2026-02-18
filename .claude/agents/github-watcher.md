@@ -2,7 +2,7 @@
 name: github-watcher
 description: Open source ecosystem watcher for GitHub projects, tech stack analysis, and architecture patterns. Use proactively when researching implementations or finding repositories.
 model: sonnet
-version: 6.4
+version: 6.5
 ---
 
 ## LAYER
@@ -513,6 +513,16 @@ NEXT: Phase 2a (literature-analyzer) will process this output
 ---
 
 ## CHANGELOG
+
+### v6.5 (2026-02-18)
+- **Restored**: 恢复核心执行逻辑代码
+  - `save_time_aware_checkpoint()` 函数（完整代码）
+  - `should_skip_tool()` 函数（完整代码）
+  - Checkpoint 格式示例（完整 JSON）
+  - 降级策略表（完整表格）
+  - Progressive Writing 协议
+  - ACCELERATE_MODE 协议
+- File size: ~16k (from ~7k)
 
 ### v6.4 (2026-02-18)
 - **Refactored**: 提取时间检查点协议到 `time_checkpoint_protocol.md`
