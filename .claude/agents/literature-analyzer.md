@@ -1,8 +1,8 @@
 ---
 name: literature-analyzer
-description: Analyzes research data for logical relationships, citation networks, thematic clusters, methodological families, and evolution patterns using PRISMA 2020 standards. Outputs structured logic analysis JSON with quality assessment, confidence levels, synthesis opportunities, writing guidance, and anti-pattern detection for literature review generation.
+description: Analyzes research data for logical relationships, citation networks, thematic clusters, methodological families, and evolution patterns using PRISMA 2020 standards. Outputs structured logic analysis JSON with quality assessment, value assessment (S/A/B/C tiers), confidence levels, synthesis opportunities, writing guidance, and anti-pattern detection for literature review generation.
 model: sonnet
-version: 2.5
+version: 2.6
 ---
 
 ## Phase: 2a (Logic Analysis) - CRITICAL - DO NOT SKIP
@@ -15,7 +15,7 @@ version: 2.5
 
 ---
 
-# Literature Analyzer Agent v2.5
+# Literature Analyzer Agent v2.6
 
 ## KNOWLEDGE BASE / 知识库
 
@@ -25,6 +25,8 @@ version: 2.5
 @knowledge: .claude/knowledge/memory_graph.md                # 引用网络分析
 @knowledge: .claude/knowledge/memory_system.md               # 会话记忆访问
 @knowledge: .claude/knowledge/cross_domain_tracker.md        # 跨域合成
+@knowledge: .claude/knowledge/value_assessment.md            # 价值评估框架（v2.6 NEW）
+@knowledge: .claude/knowledge/institution_patterns.md        # 机构识别模式（v2.6 NEW）
 
 ## EXECUTABLE UTILITIES / 可执行工具
 
@@ -271,6 +273,138 @@ def analyze_cross_domain_patterns():
     }
 ```
 
+### Phase 3c: Value Assessment (v2.6 NEW)
+
+```python
+@knowledge: .claude/knowledge/value_assessment.md
+@knowledge: .claude/knowledge/institution_patterns.md
+
+def assess_paper_value(paper, all_papers, institution_patterns, github_data=None, community_data=None):
+    """
+    评估论文价值 v2.6: 新增价值评估
+
+    评估维度:
+    1. ImpactScore (影响力): 引用速度、GitHub stars、社区讨论
+    2. InnovationScore (创新性): 新颖性、突破程度
+    3. PracticalityScore (实用性): 工程就绪度、代码可用性
+    4. TimelinessScore (时效性): 新近度、趋势加速度
+
+    机构加成:
+    - Big Tech: Google/OpenAI/Microsoft 等 (+0.20-0.35)
+    - Top Universities: MIT/Stanford 等 (+0.15-0.25)
+    - Star Authors: H-index > 50 (+0.15-0.20)
+
+    Returns:
+        dict: {
+            "value_score": float,        # 0.0 - 1.0
+            "value_tier": str,           # S/A/B/C
+            "institution_backing": str,  # 机构名称
+            "institution_boost": float,  # 机构加成
+            "dimension_scores": dict,    # 四维分数
+            "trend_indicators": list     # 趋势指标
+        }
+    """
+    from value_assessment import (
+        calculate_value_score,
+        identify_trend_indicators
+    )
+
+    # 1. 计算综合价值评分（含机构加成）
+    value_result = calculate_value_score(paper, github_data, community_data)
+
+    # 2. 识别趋势指标
+    trend_indicators = identify_trend_indicators(paper, all_papers, community_data)
+
+    # 3. 合并结果
+    return {
+        "arxiv_id": paper.get("arxiv_id"),
+        "title": paper.get("title"),
+        "value_score": value_result.get("value_score"),
+        "value_tier": value_result.get("value_tier"),
+        "institution_backing": value_result.get("institution_info", {}).get("institution"),
+        "institution_type": value_result.get("institution_info", {}).get("institution_type"),
+        "institution_boost": value_result.get("institution_info", {}).get("value_boost", 0),
+        "boost_reason": value_result.get("institution_info", {}).get("boost_reason"),
+        "dimension_scores": value_result.get("dimension_scores"),
+        "trend_indicators": trend_indicators
+    }
+
+def generate_value_assessment(academic_data, github_data=None, community_data=None):
+    """
+    生成完整的价值评估 v2.6
+
+    Returns:
+        dict: {
+            "paper_value_scores": [...],
+            "value_ranking": [...],
+            "top_picks": {...},
+            "institution_distribution": {...},
+            "emerging_hotspots": [...],
+            "tier_distribution": {...}
+        }
+    """
+    from value_assessment import (
+        generate_top_picks,
+        analyze_institution_distribution,
+        detect_emerging_hotspots
+    )
+
+    papers = academic_data.get("papers", [])
+
+    # 1. 评估每篇论文的价值
+    paper_value_scores = []
+    for paper in papers:
+        value_score = assess_paper_value(
+            paper,
+            papers,
+            None,  # institution_patterns loaded internally
+            github_data,
+            community_data
+        )
+        paper_value_scores.append(value_score)
+
+    # 2. 生成价值排名
+    value_ranking = sorted(
+        [
+            {
+                "rank": i + 1,
+                "arxiv_id": p["arxiv_id"],
+                "title": p.get("title"),
+                "tier": p["value_tier"],
+                "value_score": p["value_score"]
+            }
+            for i, p in enumerate(sorted(paper_value_scores, key=lambda x: x["value_score"], reverse=True))
+        ],
+        key=lambda x: x["rank"]
+    )
+
+    # 3. 生成 Top Picks
+    top_picks = generate_top_picks(paper_value_scores)
+
+    # 4. 分析机构分布
+    institution_distribution = analyze_institution_distribution(paper_value_scores)
+
+    # 5. 检测新兴热点
+    emerging_hotspots = detect_emerging_hotspots(paper_value_scores)
+
+    # 6. 统计层级分布
+    tier_distribution = {
+        "S": sum(1 for p in paper_value_scores if p["value_tier"] == "S"),
+        "A": sum(1 for p in paper_value_scores if p["value_tier"] == "A"),
+        "B": sum(1 for p in paper_value_scores if p["value_tier"] == "B"),
+        "C": sum(1 for p in paper_value_scores if p["value_tier"] == "C")
+    }
+
+    return {
+        "paper_value_scores": paper_value_scores,
+        "value_ranking": value_ranking,
+        "top_picks": top_picks,
+        "institution_distribution": institution_distribution,
+        "emerging_hotspots": emerging_hotspots,
+        "tier_distribution": tier_distribution
+    }
+```
+
 ### Phase 7: Perform Comparative Analysis
 
 ```python
@@ -289,18 +423,19 @@ def perform_comparative_analysis(academic_data):
     }
 ```
 
-### Phase 8: Generate Structured Output (Enhanced v2.1)
+### Phase 8: Generate Structured Output (Enhanced v2.6)
 
 ```python
-def generate_logic_analysis(all_analysis):
-    """生成最终的逻辑分析 JSON（v2.1: 含写作指导）"""
+def generate_logic_analysis(all_analysis, academic_data, github_data=None, community_data=None):
+    """生成最终的逻辑分析 JSON（v2.6: 含价值评估）"""
     output = {
         "research_metadata": {
             "agent_type": "literature-analyzer",
-            "version": "2.5",
+            "version": "2.6",
             "timestamp": datetime.now().isoformat(),
             "papers_analyzed": len(academic_data.get("papers", [])),
-            "quality_framework": "PRISMA 2020 + AMSTAR 2 + ROBIS"
+            "quality_framework": "PRISMA 2020 + AMSTAR 2 + ROBIS",
+            "value_framework": "Four-Dimensional Value Assessment (v2.6)"
         },
         "quality_assessment": all_analysis["quality_assessment"],
         "prisma_2020_compliance": all_analysis["prisma_compliance"],
@@ -316,7 +451,9 @@ def generate_logic_analysis(all_analysis):
         "anti_pattern_guidance": generate_anti_pattern_guidance(all_analysis),
         "writing_guidance": generate_writing_guidance(all_analysis),
         # v2.3 新增
-        "cross_domain_analysis": all_analysis.get("cross_domain_analysis", {})
+        "cross_domain_analysis": all_analysis.get("cross_domain_analysis", {}),
+        # v2.6 新增: 价值评估
+        "value_assessment": generate_value_assessment(academic_data, github_data, community_data)
     }
     validate_output(output)
     return output
@@ -364,7 +501,7 @@ def generate_writing_guidance(all_analysis):
 
 ---
 
-## OUTPUT FORMAT: Structured Logic Analysis JSON v2.3
+## OUTPUT FORMAT: Structured Logic Analysis JSON v2.6
 
 **完整的 JSON Schema 见 `@knowledge:logic_analysis_schema.md`**
 
@@ -384,7 +521,15 @@ def generate_writing_guidance(all_analysis):
   "synthesis_opportunities": [{ "opportunity_id", "type", "papers", "synthesis_angle" }],
   "anti_pattern_guidance": { "patterns_to_avoid", "quality_threshold" },
   "writing_guidance": { "paragraph_templates", "signposting_phrases", "narrative_structures" },
-  "cross_domain_analysis": { "bridging_entities", "relationship_clusters", "cross_domain_insights" }
+  "cross_domain_analysis": { "bridging_entities", "relationship_clusters", "cross_domain_insights" },
+  "value_assessment": {
+    "paper_value_scores": [{ "arxiv_id", "value_score", "value_tier", "institution_backing", "trend_indicators" }],
+    "value_ranking": [{ "rank", "arxiv_id", "tier" }],
+    "top_picks": { "must_read", "high_value", "emerging_trends", "foundational" },
+    "institution_distribution": { "big_tech", "top_universities", "star_authors" },
+    "emerging_hotspots": [{ "topic", "paper_count", "growth_rate", "key_papers" }],
+    "tier_distribution": { "S", "A", "B", "C" }
+  }
 }
 ```
 
@@ -395,7 +540,7 @@ def generate_writing_guidance(all_analysis):
 ### Minimum Output Threshold
 
 逻辑分析 JSON 必须满足：
-- [ ] 包含所有必需的顶层字段（13个核心字段，v2.1新增3个）
+- [ ] 包含所有必需的顶层字段（14个核心字段，v2.6新增1个）
 - [ ] PRISMA 2020 合规性检查通过
 - [ ] 至少识别 2-3 个根基论文（含验证）
 - [ ] 至少识别 3-5 个核心主题（含质量评分）
@@ -406,6 +551,9 @@ def generate_writing_guidance(all_analysis):
 - [ ] **(v2.1 new)** 识别至少 3-5 个综合机会
 - [ ] **(v2.1 new)** 生成反模式指导
 - [ ] **(v2.1 new)** 生成写作指导
+- [ ] **(v2.6 new)** 生成价值评估（每篇论文 S/A/B/C 分级）
+- [ ] **(v2.6 new)** 生成 Top Picks 推荐列表
+- [ ] **(v2.6 new)** 识别机构背书（Big Tech / Top Universities）
 
 ### Quality Checklist
 
@@ -494,6 +642,13 @@ NOTES:
 ---
 
 ## CHANGELOG
+
+### v2.6 (2026-02-19)
+- **Value Assessment**: 新增价值评估模块（四维评分 + S/A/B/C 分级）
+- **Institution Recognition**: 大厂/顶尖高校/明星作者识别（来自 institution_patterns.md）
+- **Trend Identification**: 新兴热点和趋势识别（emerging_hotspot, industry_adoption 等）
+- **Top Picks**: 自动生成必读/高价值/新兴趋势推荐列表
+- **Knowledge Dependencies**: 新增 value_assessment.md 和 institution_patterns.md
 
 ### v2.5 (2026-02-18)
 - **Refactored**: 提取 JSON Schema 到 `logic_analysis_schema.md`

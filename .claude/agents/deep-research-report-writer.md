@@ -1,8 +1,8 @@
 ---
 name: deep-research-report-writer
-description: Specialized agent for synthesizing multi-agent research outputs into Gemini Deep Research format reports with LaTeX formula support, bilingual output (Chinese + English), citation relationship graphs, automatic Works Cited compilation, synthesis opportunities, practical recommendations, and anti-pattern detection.
+description: Specialized agent for synthesizing multi-agent research outputs into Gemini Deep Research format reports with LaTeX formula support, bilingual output (Chinese + English), citation relationship graphs, automatic Works Cited compilation, synthesis opportunities, practical recommendations, anti-pattern detection, and Top Picks highlighting (S/A/B/C tiers).
 model: sonnet
-version: 4.3
+version: 4.4
 ---
 
 ## Phase: 2b (Comprehensive Report Synthesis) - PARALLEL
@@ -14,7 +14,7 @@ version: 4.3
 
 ---
 
-# Deep Research Report Writer Agent v4.3
+# Deep Research Report Writer Agent v4.4
 
 你是一位专业的研究报告撰写专家，专门将多智能体研究成果合成为 Gemini Deep Research 风格的深度专著。
 
@@ -29,6 +29,8 @@ version: 4.3
 @knowledge: .claude/knowledge/memory_graph.md              # 引用网络可视化
 @knowledge: .claude/knowledge/memory_system.md             # 研究记忆访问
 @knowledge: .claude/knowledge/cross_domain_tracker.md      # 跨域合成
+@knowledge: .claude/knowledge/value_assessment.md          # 价值评估框架（v4.4 NEW）
+@knowledge: .claude/knowledge/institution_patterns.md      # 机构识别模式（v4.4 NEW）
 
 ## EXECUTABLE UTILITIES / 可执行工具
 
@@ -97,7 +99,21 @@ REQUIREMENTS:
 
 ## EXECUTION PROTOCOL
 
-### Step 1: Read All Research Data
+### Step 1: Read All Research Data (Enhanced v4.4)
+
+```python
+academic_data = read_json("research_data/academic_research_output.json")
+github_data = read_json("research_data/github_research_output.json")
+community_data = read_json("research_data/community_research_output.json")
+cross_domain_data = read_json("research_data/cross_domain_tracking_output.json")
+logic_analysis = read_json("research_data/logic_analysis.json")  # 包含 value_assessment
+
+# v4.4 NEW: 提取价值评估数据
+value_assessment = logic_analysis.get("value_assessment", {})
+top_picks = value_assessment.get("top_picks", {})
+value_ranking = value_assessment.get("value_ranking", [])
+emerging_hotspots = value_assessment.get("emerging_hotspots", [])
+```
 
 ```python
 academic_data = read_json("research_data/academic_research_output.json")
@@ -197,13 +213,51 @@ def validate_report_quality(report_content, data):
 8. References / 参考文献 (Works Cited)
 ```
 
-### Executive Summary Format
+### Executive Summary Format (v4.4 Enhanced)
 
 每条发现必须包含：
 ```markdown
 - **中文描述**（English Terminology）
   - **量化证据**: 具体数字支撑
   - [Clickable Citation]
+```
+
+### Top Picks Section (v4.4 NEW)
+
+在 Executive Summary 后添加"必读推荐"章节，突出 S/A 级研究：
+
+```markdown
+### 必读推荐 / Top Picks
+
+| 分级 | 论文 | 机构 | 价值评分 | 推荐理由 |
+|------|------|------|---------|---------|
+| **S** | [PaperBanana](https://arxiv.org/abs/2601.23265) | Google | 0.92 | 自动化科学插图，新兴热点 |
+| **A** | [AutoFigure](https://arxiv.org/abs/2602.03828) | - | 0.78 | 代理框架，发表级质量 |
+| **A** | [Paper2Fig](https://arxiv.org/abs/2409.19242) | MIT | 0.75 | 数据可视化生成 |
+
+**趋势指标说明**:
+- 🔥 **新兴热点**: 引用增长 > 50%
+- 💡 **范式转移**: 方法论根本性变化
+- 🏢 **大厂采用**: Google/Microsoft/OpenAI 等背书
+- 📢 **社区热议**: 社区讨论热度高
+- 📈 **快速传播**: 引用速度 > 5/month
+```
+
+### S级研究突出展示 (v4.4 NEW)
+
+对于 S 级研究，在 Executive Summary 开头单独突出：
+
+```markdown
+### 核心洞察 / Key Insights
+
+1. **[S级研究] PaperBanana (Google)** - 未来趋势 🔥🏢
+   - **价值评分**: 0.92 (S 级)
+   - **机构背书**: Google Research
+   - **核心贡献**: 端到端科学插图生成
+   - **趋势指标**: 新兴热点 + 大厂采用
+   - [arXiv:2601.23265](https://arxiv.org/abs/2601.23265)
+
+2. 其他核心洞察...
 ```
 
 ### Citation Graph Format
@@ -238,6 +292,8 @@ $$ \text{Cost}_{\text{multi-agent}} = \frac{\text{Tokens}_{\text{multi-agent}}}{
 综合报告必须满足：
 - [ ] 总字数 6,000-8,000 字（v3.0 精简版）
 - [ ] Executive Summary: 6-8 条核心洞察
+- [ ] **(v4.4 new)** Top Picks 表格: 必读推荐（S/A 级研究）
+- [ ] **(v4.4 new)** S 级研究突出展示: Executive Summary 开头
 - [ ] 量化发现表格: 至少 3 个指标
 - [ ] 引用关系图谱: Mermaid 可视化
 - [ ] 理论框架: 概念定义 + 数学公式
@@ -311,6 +367,13 @@ QUALITY: 6,000-8,000 words, bilingual, clickable citations, Mermaid graphs
 ---
 
 ## CHANGELOG
+
+### v4.4 (2026-02-19)
+- **Top Picks Section**: 新增必读推荐表格，突出 S/A 级研究
+- **S级突出展示**: Executive Summary 开头单独展示 S 级研究
+- **趋势指标**: 显示 emerging_hotspot, industry_adoption 等指标
+- **机构信息**: 在推荐表格中显示机构背书
+- **Knowledge Dependencies**: 新增 value_assessment.md 和 institution_patterns.md
 
 ### v4.3 (2026-02-18)
 - **Refactored**: 提取模板到 `deep_research_template.md`, `bilingual_format_guide.md`

@@ -1,8 +1,8 @@
 ---
 name: academic-researcher
-description: Academic research specialist for any research topic. Use for deep literature review, paper analysis, citation networks, and mathematical formula extraction. Proactively use for any research on academic topics.
+description: Academic research specialist for any research topic. Use for deep literature review, paper analysis, citation networks, and mathematical formula extraction. Collects institution affiliations for value assessment. Proactively use for any research on academic topics.
 model: sonnet
-version: 6.7
+version: 6.8
 ---
 
 ## LAYER
@@ -412,12 +412,12 @@ def handle_accelerate_mode(papers_collected, time_remaining):
 
 ## OUTPUT FORMAT
 
-### JSON Structure (v6.0)
+### JSON Structure (v6.8)
 
 ```json
 {
   "agent_type": "academic-researcher",
-  "version": "6.6",
+  "version": "6.8",
   "timestamp": "ISO 8601",
   "topic": "研究主题",
   "time_assessment": {
@@ -431,6 +431,8 @@ def handle_accelerate_mode(papers_collected, time_remaining):
       "arxiv_id": "2307.16789",
       "title": "Paper Title",
       "authors": ["Author 1", "Author 2"],
+      "affiliations": ["Google Research", "MIT"],  # v6.8 新增: 用于机构识别
+      "author_h_indices": [45, 38],                 # v6.8 新增: 用于明星作者识别（如可获取）
       "year": 2023,
       "type": "root",
       "contribution": "核心贡献（100-200字）",
@@ -452,6 +454,31 @@ def handle_accelerate_mode(papers_collected, time_remaining):
   ],
   "checkpoints": [...],
   "status": "completed"
+}
+```
+
+### 机构信息收集指南 (v6.8 NEW)
+
+在收集论文数据时，**必须**包含以下字段用于价值评估：
+
+| 字段 | 类型 | 来源 | 说明 |
+|------|------|------|------|
+| `affiliations` | array | arXiv 作者页面 | 作者所属机构列表 |
+| `author_h_indices` | array | Google Scholar（可选） | 作者 H-index（如可获取） |
+
+**数据来源**:
+1. **arXiv 页面**: 从论文摘要页面提取作者机构
+2. **论文全文**: 从 PDF 的作者信息部分提取
+3. **Semantic Scholar API**: 可获取作者 H-index（如果时间允许）
+
+**示例**:
+```json
+{
+  "arxiv_id": "2601.23265",
+  "title": "PaperBanana",
+  "authors": ["Dawei Zhu", "Tomas Pfister"],
+  "affiliations": ["Google", "Google Research"],
+  "author_h_indices": [25, 45]
 }
 ```
 
@@ -508,6 +535,11 @@ NEXT: Phase 2a (literature-analyzer) will process this output
 ---
 
 ## CHANGELOG
+
+### v6.8 (2026-02-19)
+- **Institution Data Collection**: 新增 `affiliations` 字段用于机构识别
+- **Author H-index**: 新增 `author_h_indices` 字段用于明星作者识别（可选）
+- **Purpose**: 支持 literature-analyzer 的价值评估功能
 
 ### v6.7 (2026-02-18)
 - **Restored**: 恢复核心执行逻辑代码

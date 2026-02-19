@@ -2,18 +2,19 @@
 
 > **Purpose**: Complete JSON schema and examples for literature-analyzer output.
 > **Usage**: Reference this file via `@knowledge:logic_analysis_schema.md`
+> **Depends on**: `@knowledge:value_assessment.md`, `@knowledge:institution_patterns.md`
 
 ---
 
-## OUTPUT FORMAT: Structured Logic Analysis JSON v2.3
+## OUTPUT FORMAT: Structured Logic Analysis JSON v2.6
 
 ### Complete JSON Schema
 
 ```json
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "Literature Logic Analysis v2.3",
-  "description": "Enhanced logic analysis with PRISMA 2020 compliance, quality assessment, synthesis opportunities, writing guidance, and cross-domain analysis",
+  "title": "Literature Logic Analysis v2.6",
+  "description": "Enhanced logic analysis with PRISMA 2020 compliance, quality assessment, value assessment (v2.6), synthesis opportunities, writing guidance, and cross-domain analysis",
 
   "research_metadata": {
     "agent_type": "literature-analyzer",
@@ -478,6 +479,89 @@
       "paper_to_repo": 5,
       "repo_to_community": 7
     }
+  },
+
+  "value_assessment": {
+    "paper_value_scores": [
+      {
+        "arxiv_id": "2601.23265",
+        "title": "PaperBanana",
+        "value_score": 0.92,
+        "value_tier": "S",
+        "institution_backing": "Google",
+        "institution_type": "big_tech",
+        "institution_boost": 0.30,
+        "boost_reason": "Big Tech: Google",
+        "dimension_scores": {
+          "impact_score": 0.85,
+          "innovation_score": 0.90,
+          "practicality_score": 0.88,
+          "timeliness_score": 0.95
+        },
+        "trend_indicators": ["emerging_hotspot", "industry_adoption"]
+      },
+      {
+        "arxiv_id": "2602.03828",
+        "title": "AutoFigure",
+        "value_score": 0.78,
+        "value_tier": "A",
+        "institution_backing": null,
+        "institution_type": null,
+        "institution_boost": 0,
+        "boost_reason": "No special institutional backing identified",
+        "dimension_scores": {
+          "impact_score": 0.70,
+          "innovation_score": 0.80,
+          "practicality_score": 0.85,
+          "timeliness_score": 0.75
+        },
+        "trend_indicators": ["emerging_hotspot"]
+      }
+    ],
+    "value_ranking": [
+      {"rank": 1, "arxiv_id": "2601.23265", "title": "PaperBanana", "tier": "S", "value_score": 0.92},
+      {"rank": 2, "arxiv_id": "2602.03828", "title": "AutoFigure", "tier": "A", "value_score": 0.78}
+    ],
+    "top_picks": {
+      "must_read": [
+        {
+          "arxiv_id": "2601.23265",
+          "title": "PaperBanana",
+          "institution": "Google",
+          "value_score": 0.92,
+          "reason": "机构: Google | 大厂采用 | 新兴热点"
+        }
+      ],
+      "high_value": [
+        {"arxiv_id": "2602.03828", "title": "AutoFigure", "value_score": 0.78}
+      ],
+      "emerging_trends": [
+        {"arxiv_id": "2601.23265", "title": "PaperBanana", "trend_type": "Hotspot"}
+      ],
+      "foundational": [
+        {"arxiv_id": "2302.05543", "title": "Foundation Paper", "citations": 250}
+      ]
+    },
+    "institution_distribution": {
+      "big_tech": ["Google", "Microsoft"],
+      "top_universities": ["MIT", "Stanford"],
+      "star_authors": ["Author Name (H-index: 85)"]
+    },
+    "emerging_hotspots": [
+      {
+        "topic": "AI-generated scientific illustrations",
+        "paper_count": 4,
+        "growth_rate": "150%",
+        "key_papers": ["2601.23265", "2602.03828"],
+        "industry_backing": ["Google"]
+      }
+    ],
+    "tier_distribution": {
+      "S": 1,
+      "A": 2,
+      "B": 3,
+      "C": 1
+    }
   }
 }
 ```
@@ -501,11 +585,15 @@ validation_rules = {
         "synthesis_insights",
         "synthesis_opportunities",
         "anti_pattern_guidance",
-        "writing_guidance"
+        "writing_guidance",
+        "value_assessment"  # v2.6 新增
     ],
     "confidence_levels": ["low", "medium-low", "medium", "medium-high", "high"],
     "evidence_levels": ["weak", "moderate", "strong", "very_strong"],
     "quality_score_range": [0.0, 1.0],
+    "value_tiers": ["S", "A", "B", "C"],  # v2.6 新增
+    "institution_types": ["big_tech", "top_university", "star_author", "emerging", None],  # v2.6 新增
+    "trend_indicators": ["emerging_hotspot", "paradigm_shift", "industry_adoption", "community_hype", "viral_spread"],  # v2.6 新增
     "timestamp_format": "ISO 8601",
     "id_formats": {
         "gap_id": r"^gap_\d{3}$",
@@ -539,6 +627,18 @@ validation_rules = {
 | `anti_pattern_guidance` | object | 反模式指导（v2.1+） |
 | `writing_guidance` | object | 写作指导（v2.1+） |
 | `cross_domain_analysis` | object | 跨域分析（v2.3+） |
+| `value_assessment` | object | 价值评估（v2.6+） |
+
+### value_assessment 子字段
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `paper_value_scores` | array | 每篇论文的价值评分详情 |
+| `value_ranking` | array | 按价值排序的论文列表 |
+| `top_picks` | object | 推荐列表（must_read, high_value, emerging_trends, foundational） |
+| `institution_distribution` | object | 机构分布统计 |
+| `emerging_hotspots` | array | 新兴热点列表 |
+| `tier_distribution` | object | S/A/B/C 分布统计 |
 
 ---
 
@@ -547,3 +647,5 @@ validation_rules = {
 - `@knowledge:logic_analysis.md` - 逻辑分析方法和协议
 - `@knowledge:memory_graph.md` - 记忆图谱系统
 - `@knowledge:cross_domain_tracker.md` - 跨域追踪
+- `@knowledge:value_assessment.md` - 价值评估框架（v2.6+）
+- `@knowledge:institution_patterns.md` - 机构识别模式（v2.6+）
