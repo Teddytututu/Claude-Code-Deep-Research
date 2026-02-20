@@ -57,6 +57,8 @@
 - ✅ Deploy research subagents in parallel with proper task specifications
 - ✅ **Wait for subagents to complete and check results**
 - ✅ **If subagent incomplete due to time limit: relaunch with continuation instructions**
+- ✅ **Deploy critic-evaluator to assess subagent outputs (Phase 1.2)**
+- ✅ **Handle REVISE verdict: trigger reflection protocol and re-evaluation**
 - ✅ Coordinate logic analysis before report generation
 - ✅ Deploy dual report writers in parallel
 - ✅ Deploy link-validator agent automatically after reports
@@ -107,6 +109,12 @@
 └───────────────────┬───────────────────────┘
                     │
 ┌───────────────────┴───────────────────────┐
+│ Phase 1.2: Critic Evaluation (NEW)        │
+│ Agent: critic-evaluator                   │
+│   PASS → Phase 1.5 | REVISE → Reflection  │
+└───────────────────┬───────────────────────┘
+                    │
+┌───────────────────┴───────────────────────┐
 │ Phase 1.5: Cross-Domain Tracking          │
 │ Agent: cross-domain-tracker               │
 └───────────────────┬───────────────────────┘
@@ -143,6 +151,8 @@
 | 数据未记录 | 检查 `save_failed` 或文件不存在 | `_save()` 无错误处理 | 使用原子写入 + 错误日志 |
 | 未按时间续传 | 检查 `time_status` != "time_critical" | Phase 1.1 未执行 | 实现 check_minimum_requirements |
 | 报告格式未检测 | 检查 `intent_detected` = False | Phase -0.5 未执行 | 添加 detect_user_intent() |
+| Subagent 自我评估过高 | 检查 `verdict` 始终为 PASS | 缺少独立评估层 | Phase 1.2 Critic Evaluation |
+| 错误反复出现 | 检查同类 `rewind_ticket` 多次生成 | 缺少反思机制 | Reflection Protocol + Anti-Pattern |
 
 > 详细验证代码见 `@knowledge:verification_patterns.md`
 
@@ -201,6 +211,7 @@ Example: "给我1小时" → 每个 agent: 48分钟 (并行运行)
 | `academic-researcher` | 2 | memory_system.md, memory_graph.md | 学术论文研究 |
 | `github-watcher` | 2 | memory_system.md, memory_graph.md | GitHub 生态调研 |
 | `community-listener` | 2 | memory_system.md, memory_graph.md | 社区讨论监听 |
+| `critic-evaluator` | - | quality_checklist.md, verification_patterns.md | 独立评估 |
 | `literature-analyzer` | - | logic_analysis.md, memory_graph.md | 逻辑关系分析 |
 | `deep-research-report-writer` | - | quality_checklist.md, report_templates.md | 综合报告生成 |
 | `literature-review-writer` | - | quality_checklist.md, report_templates.md | 文献综述生成 |
@@ -333,10 +344,11 @@ ELSE:
 | **github-watcher** | GitHub Analysis | 需要 GitHub 项目、代码实现 |
 | **community-listener** | Community Listening | 需要实践反馈、社区共识 |
 
-### Report Synthesis Agents (6)
+### Report Synthesis Agents (7)
 
 | Agent | Purpose | When to Use |
 |--------|---------|-------------|
+| **critic-evaluator** | 独立评估 | Phase 1.1 完成后，评估 Subagent 产出 |
 | **literature-analyzer** | 逻辑分析 | 研究数据完成后 |
 | **deep-research-report-writer** | 综合报告 | 生成 Gemini Deep Research 格式报告 |
 | **literature-review-writer** | 文献综述 | 生成学术文献综述报告 |
@@ -358,6 +370,8 @@ ELSE:
 | academic-researcher | `.claude/agents/academic-researcher.md` | ArXiv 论文研究 | mcp__arxiv-mcp-server__*, Task |
 | github-watcher | `.claude/agents/github-watcher.md` | GitHub 生态调研 | mcp__zread__*, Task |
 | community-listener | `.claude/agents/community-listener.md` | 社区讨论监听 | mcp__web-reader__*, Task |
+| **Quality Assurance** |||||
+| critic-evaluator | `.claude/agents/critic-evaluator.md` | 独立评估 Subagent 产出 | Read, Grep, Write |
 | **Analysis & Synthesis** |||||
 | literature-analyzer | `.claude/agents/literature-analyzer.md` | 逻辑关系分析 | Read, Grep, Glob |
 | cross-domain-tracker | `.claude/agents/cross-domain-tracker.md` | 跨域关系追踪 | Read, Grep |
@@ -379,6 +393,7 @@ ELSE:
 |------|---------|------|
 | Time Budget | `.claude/protocols/time-budget.md` | 时间预算分配公式 |
 | Phase 1 Parallel Research | `.claude/protocols/phase1-parallel-research.md` | 并行研究执行协议 |
+| Reflection Protocol | `.claude/protocols/reflection-protocol.md` | 反思与错误溯源协议 |
 | Report Generation | `.claude/protocols/report-generation.md` | 报告生成协议 |
 | Modular Structure | `.claude/protocols/modular-structure-plan.md` | 模块化结构规划 |
 
@@ -398,6 +413,8 @@ ELSE:
 | Phase | 输出文件 |
 |-------|---------|
 | Phase 1 | `research_data/{agent}_researcher_output.json` |
+| Phase 1.2 | `research_data/critic_evaluation_{agent}.json` |
+| Phase 1.2 (REVISE) | `research_data/reflection_{ticket_id}.json` |
 | Phase 1.5 | `research_data/cross_domain_tracking_output.json` |
 | Phase 2a | `research_data/logic_analysis.json` |
 | Phase 2b | `research_output/{topic}_comprehensive_report.md` |
@@ -586,6 +603,38 @@ pseudo:
 
 ---
 
+### Phase 1.2: Critic Evaluation (NEW)
+
+**Agent**: `critic-evaluator`
+**触发**: Phase 1.1 完成后
+**输入**: `research_data/{agent}_researcher_output.json`
+**输出**: `research_data/critic_evaluation_{agent}.json`
+
+```
+pseudo:
+1. 对每个 subagent 调用 Task(subagent_type="critic-evaluator", prompt=...)
+2. 评估三个维度:
+   - Completeness: 是否满足最小产出要求？
+   - Correctness: 是否有逻辑错误或幻觉？
+   - Quality: 产出质量如何？
+3. 根据 verdict 处理:
+   - PASS: 继续到 Phase 1.5
+   - REVISE: 触发 Reflection Protocol → 修复 → 重新评估
+   - REJECT: Director 决策
+```
+
+**评估决策**:
+
+| Verdict | 条件 | 动作 |
+|---------|------|------|
+| `PASS` | 满足所有最小要求，quality >= 0.5 | 继续 Phase 1.5 |
+| `REVISE` | 存在可修复缺陷，quality >= 0.3 | 触发 Reflection Protocol |
+| `REJECT` | 方向性错误，quality < 0.3 | Director 决策 |
+
+> 详细实现见 `.claude/agents/critic-evaluator.md` 和 `.claude/protocols/reflection-protocol.md`
+
+---
+
 ### Phase 1.5: Cross-Domain Tracking
 
 **Agent**: `cross-domain-tracker`
@@ -736,3 +785,5 @@ pseudo:
 6. **双输出系统**: 综合报告 + 文献综述
 7. **链接验证**: link-validator agent 自动验证所有报告链接
 8. **定制输出**: task_handle agent 支持灵活的定制化输出格式
+9. **对抗式评估**: critic-evaluator 独立评估 Subagent 产出，避免 LLM 自我评估幻觉
+10. **反思闭环**: REVISE 触发 Reflection Protocol，从错误中学习并沉淀经验
