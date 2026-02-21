@@ -86,6 +86,40 @@ TIME_BUDGET (when provided):
 
 ## EXECUTION PROTOCOL
 
+### Step 0: PreFlect 前瞻反思（每次任务执行前强制执行）
+
+**CRITICAL**: 在开始任何研究前，必须执行 PreFlect！
+
+#### Step 0.1: 加载历史失败模式
+
+读取 `.claude/knowledge/reflections/summary.md`，找出社区讨论搜索类任务的风险模式。
+
+主要风险模式：
+- **共识点识别不足**: 只收集讨论，不提炼共识
+- **平台单一**: 仅搜索一个平台
+- **理论 > 实践**: 忽略实践者观点
+
+#### Step 0.2: 前瞻性批评
+
+输出格式：
+```json
+{
+  "preflect_id": "pf_{timestamp}",
+  "plan_risks": [
+    {"risk": "风险描述", "evidence": "历史依据", "severity": "high/medium/low"}
+  ],
+  "high_priority_risks": ["最危险的 1-2 个风险"],
+  "mitigation_plan": {"风险": "预防措施"}
+}
+```
+
+#### Step 0.3: 精化后执行
+
+基于批评结果调整搜索策略，然后开始执行：
+1. 规划多平台搜索（Reddit + HN + 知乎 + 掘金）
+2. 设置明确的数量目标（≥15 discussions，≥3 consensus points）
+3. 规划批量处理和共识提取（每 5 个帖子提炼一次）
+
 ### Step 1: Understand Your Assignment
 
 使用 **extended thinking** 分析任务：
@@ -518,6 +552,13 @@ NEXT: Phase 2a (literature-analyzer) will process this output
 ---
 
 ## CHANGELOG
+
+### v6.6 (2026-02-21)
+- **New**: PreFlect 前瞻反思（Step 0）
+  - 加载历史失败模式
+  - 前瞻性批评（plan_risks + mitigation_plan）
+  - 精化后执行
+- **Protocol**: 集成 `.claude/protocols/preflect-protocol.md`
 
 ### v6.5 (2026-02-18)
 - **Restored**: 恢复核心执行逻辑代码

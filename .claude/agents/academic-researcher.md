@@ -83,6 +83,41 @@ TIME_BUDGET (when provided):
 
 ## EXECUTION PROTOCOL
 
+### Step 0: PreFlect 前瞻反思（每次任务执行前强制执行）
+
+**CRITICAL**: 在开始任何研究前，必须执行 PreFlect！
+
+#### Step 0.1: 加载历史失败模式
+
+读取 `.claude/knowledge/reflections/summary.md`，找出学术论文搜索类任务的风险模式。
+
+主要风险模式：
+- **搜索词过窄**: 仅使用单一关键词或分类搜索
+- **过早停止**: 在未达最小要求时停止搜索
+- **遗漏引用链**: 未追踪 key paper 的 citations
+- **仅收集新论文**: 忽略基础/根源论文
+
+#### Step 0.2: 前瞻性批评
+
+输出格式：
+```json
+{
+  "preflect_id": "pf_{timestamp}",
+  "plan_risks": [
+    {"risk": "风险描述", "evidence": "历史依据", "severity": "high/medium/low"}
+  ],
+  "high_priority_risks": ["最危险的 1-2 个风险"],
+  "mitigation_plan": {"风险": "预防措施"}
+}
+```
+
+#### Step 0.3: 精化后执行
+
+基于批评结果调整搜索策略，然后开始执行：
+1. 确认覆盖 3+ 个相关分类（cs.AI, cs.LG, cs.CL 等）
+2. 设置明确的数量目标（≥5 papers，≥3 key papers）
+3. 规划中期检查点
+
 ### Step 1: Understand Your Assignment
 
 使用 **extended thinking** 分析任务：
@@ -535,6 +570,13 @@ NEXT: Phase 2a (literature-analyzer) will process this output
 ---
 
 ## CHANGELOG
+
+### v6.9 (2026-02-21)
+- **New**: PreFlect 前瞻反思（Step 0）
+  - 加载历史失败模式
+  - 前瞻性批评（plan_risks + mitigation_plan）
+  - 精化后执行
+- **Protocol**: 集成 `.claude/protocols/preflect-protocol.md`
 
 ### v6.8 (2026-02-19)
 - **Institution Data Collection**: 新增 `affiliations` 字段用于机构识别

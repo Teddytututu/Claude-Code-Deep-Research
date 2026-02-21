@@ -98,6 +98,11 @@
 │ Agent: readiness-assessor (仅当涉及生产部署时)                   │
 └────────────────────────────┬────────────────────────────────────┘
                              │
+┌─────────────────────────────────────────────────────────────────┐
+│ Phase 0.9: PreFlect 前瞻反思 (NEW)                               │
+│ 每个Subagent 执行前: 加载失败模式 → 前瞻批评 → 精化计划          │
+└────────────────────────────┬────────────────────────────────────┘
+                             │
 ┌───────────────────────────────────────────┐
 │ Phase 1: Parallel Research Execution      │
 │   Deploy 3 research subagents (带 max_turns) │
@@ -393,6 +398,7 @@ ELSE:
 |------|---------|------|
 | Time Budget | `.claude/protocols/time-budget.md` | 时间预算分配公式 |
 | Phase 1 Parallel Research | `.claude/protocols/phase1-parallel-research.md` | 并行研究执行协议 |
+| PreFlect Protocol | `.claude/protocols/preflect-protocol.md` | 事前前瞻反思协议 |
 | Reflection Protocol | `.claude/protocols/reflection-protocol.md` | 反思与错误溯源协议 |
 | Report Generation | `.claude/protocols/report-generation.md` | 报告生成协议 |
 | Modular Structure | `.claude/protocols/modular-structure-plan.md` | 模块化结构规划 |
@@ -554,10 +560,45 @@ pseudo:
 
 ---
 
+### Phase 0.9: PreFlect 前瞻反思（新增）
+
+**目的**: 在每个 Subagent 开始执行前，强制执行前瞻性批评，预防常见错误
+**协议**: `.claude/protocols/preflect-protocol.md`
+
+```
+pseudo:
+在每个 Subagent 开始执行前：
+1. 加载 .claude/knowledge/reflections/summary.md
+2. Subagent 输出前瞻性批评（plan_risks + mitigation_plan）
+3. 基于批评精化执行计划
+4. 开始执行
+```
+
+**PreFlect 流程**:
+```
+传统: 执行 → 失败 → 反思 → 修复（浪费时间）
+PreFlect: 前瞻批评 → 精化计划 → 执行（预防错误）
+```
+
+**预防的常见错误**:
+
+| 任务类型 | 风险 | 前瞻检查 |
+|---------|------|---------|
+| 论文搜索 | 搜索词过窄 | 是否覆盖 3+ 个分类？ |
+| 论文搜索 | 过早停止 | 是否设置数量目标（≥5）？ |
+| GitHub | 仅用关键词 | 是否用 topics + stars？ |
+| GitHub | 遗漏实现 | 是否检查论文对应代码？ |
+| 社区 | 共识不足 | 是否计划定期提炼？ |
+| 社区 | 平台单一 | 是否覆盖多平台？ |
+
+> 详细协议见 `.claude/protocols/preflect-protocol.md`
+
+---
+
 ### Phase 1: Research Subagent Deployment
 
 **Agents**: academic-researcher, github-watcher, community-listener
-**触发**: Phase 0.85 完成后
+**触发**: Phase 0.9 完成后
 **输入**: time_allocation
 **输出**:
 - `research_data/academic_researcher_output.json`

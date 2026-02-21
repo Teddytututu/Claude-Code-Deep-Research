@@ -424,6 +424,245 @@ handle_335_iteration():
 
 ---
 
+## 结构化反思 Action（工具调用失败时触发）
+
+### 核心价值
+
+当 MCP 工具调用失败时，自动诊断并生成结构化修复方案，而非盲目重试。
+
+```
+传统做法: 工具失败 → 盲目重试 → 再次失败 → 放弃
+结构化反思: 工具失败 → 诊断错误类型 → 生成修正方案 → 精准重试
+```
+
+### 触发条件
+
+- 任何 MCP 工具调用返回错误
+- 连续 2 次相同调用失败
+
+### 执行流程
+
+#### Step 1: 暂停执行，进入 `<reflect>` 阶段
+
+```python
+def trigger_tool_reflection(failed_tool, error_message, params):
+    """
+    工具调用失败时触发结构化反思
+
+    Args:
+        failed_tool: 失败的工具名称
+        error_message: 错误信息
+        params: 导致失败的参数
+    """
+    # 暂停当前执行
+    pause_execution()
+
+    # 进入反思阶段
+    return {
+        "stage": "tool_reflection",
+        "failed_tool": failed_tool,
+        "error_message": error_message,
+        "params": params
+    }
+```
+
+#### Step 2: 输出结构化诊断
+
+```json
+{
+  "reflection_type": "tool_failure",
+  "timestamp": "2026-02-21T10:45:00Z",
+  "failed_tool": "mcp__arxiv-mcp-server__search_papers",
+  "failed_params": {
+    "query": "multi-agent orchestration",
+    "categories": ["cs.AI"]
+  },
+  "error_message": "Timeout after 30s",
+  "error_type": "external_service_exception",
+  "diagnosis": {
+    "error_type": "参数错误|工具选择错误|权限不足|外部服务异常",
+    "root_cause": "arXiv API 响应超时，可能是网络问题或查询过于复杂",
+    "severity": "medium"
+  },
+  "corrective_action": {
+    "action": "重试策略",
+    "modified_params": {
+      "query": "multi-agent",  // 简化查询
+      "max_results": 10        // 减少结果数量
+    },
+    "fallback_tool": null,     // 或指定替代工具
+    "retry_delay_seconds": 5
+  }
+}
+```
+
+#### Step 3: 执行修正后的调用
+
+```python
+def execute_corrective_action(diagnosis):
+    """执行修正后的调用"""
+    action = diagnosis["corrective_action"]
+
+    if action["fallback_tool"]:
+        # 使用替代工具
+        return invoke_tool(
+            action["fallback_tool"],
+            action.get("modified_params", {})
+        )
+    else:
+        # 延迟后重试
+        time.sleep(action.get("retry_delay_seconds", 3))
+        return invoke_tool(
+            diagnosis["failed_tool"],
+            action["modified_params"]
+        )
+```
+
+#### Step 4: 记录"失败-修复"对
+
+将经验写入知识库：
+
+```json
+{
+  "pattern_id": "tool_fail_001",
+  "tool": "mcp__arxiv-mcp-server__search_papers",
+  "error_type": "external_service_exception",
+  "symptoms": ["Timeout", "无响应"],
+  "successful_fix": "简化查询词，减少 max_results",
+  "timestamp": "2026-02-21T10:45:30Z"
+}
+```
+
+### 错误类型处理
+
+| error_type | 诊断方向 | 处理方式 |
+|------------|---------|---------|
+| `参数错误` | 检查参数格式、类型、范围 | 修正参数格式后重试 |
+| `工具选择错误` | 检查是否有更合适的工具 | 切换到替代工具 |
+| `权限不足` | 检查 API key、访问权限 | 向 Director 汇报，请求授权 |
+| `外部服务异常` | 检查网络、服务状态 | 添加重试延迟，或跳过该源 |
+
+### 常见工具失败场景
+
+#### 场景 1: arXiv 搜索超时
+
+```json
+{
+  "failed_tool": "mcp__arxiv-mcp-server__search_papers",
+  "error_type": "external_service_exception",
+  "corrective_action": {
+    "action": "简化查询并重试",
+    "modified_params": {
+      "query": "simplified_query",
+      "max_results": 5
+    },
+    "retry_delay_seconds": 5
+  }
+}
+```
+
+#### 场景 2: GitHub 读取 Rate Limit
+
+```json
+{
+  "failed_tool": "mcp__zread__read_file",
+  "error_type": "external_service_exception",
+  "error_message": "Rate limit exceeded",
+  "corrective_action": {
+    "action": "延迟重试",
+    "retry_delay_seconds": 60,
+    "alternative": "使用 search_doc 替代 read_file"
+  }
+}
+```
+
+#### 场景 3: Web Reader 403 Forbidden
+
+```json
+{
+  "failed_tool": "mcp__web-reader__webReader",
+  "error_type": "权限不足",
+  "error_message": "403 Forbidden",
+  "corrective_action": {
+    "action": "跳过该 URL",
+    "fallback": "记录 URL 为不可访问，继续处理其他源"
+  }
+}
+```
+
+#### 场景 4: 参数格式错误
+
+```json
+{
+  "failed_tool": "mcp__arxiv-mcp-server__search_papers",
+  "error_type": "参数错误",
+  "error_message": "Invalid query syntax",
+  "corrective_action": {
+    "action": "修正查询语法",
+    "modified_params": {
+      "query": "multi-agent OR agent coordination",  // 使用正确的 OR 语法
+      "categories": ["cs.AI"]
+    }
+  }
+}
+```
+
+### 工具失败处理速查表
+
+| 工具 | 常见失败 | 诊断方向 | 修正方案 |
+|------|---------|---------|---------|
+| `mcp__arxiv-mcp-server__search_papers` | 超时、无结果 | 检查查询语法、分类选择 | 简化查询、减少 max_results |
+| `mcp__arxiv-mcp-server__download_paper` | 下载失败 | 检查网络、尝试其他镜像 | 延迟重试、使用 abstract |
+| `mcp__zread__*` | Rate limit | 检查调用频率 | 添加延迟、使用缓存 |
+| `mcp__web-reader__webReader` | 403/超时 | 检查 URL 有效性 | 跳过不可访问的 URL |
+
+### 与 Subagent 的集成
+
+在 Subagent 的工具调用代码中添加结构化反思：
+
+```python
+def safe_tool_call(tool_name, params, max_retries=2):
+    """带结构化反思的安全工具调用"""
+    for attempt in range(max_retries):
+        try:
+            result = invoke_tool(tool_name, params)
+            return result
+        except Exception as e:
+            if attempt == max_retries - 1:
+                # 最后一次尝试失败，记录并跳过
+                log_tool_failure(tool_name, str(e), params)
+                return None
+
+            # 触发结构化反思
+            diagnosis = trigger_tool_reflection(tool_name, str(e), params)
+
+            # 输出诊断信息
+            print(f"""
+┌─────────────────────────────────────────────────────┐
+│  ⚠️  TOOL REFLECTION                                │
+├─────────────────────────────────────────────────────┤
+│  Tool: {tool_name:<40} │
+│  Error: {diagnosis['error_type']:<38} │
+│  Action: {diagnosis['corrective_action']['action']:<36} │
+└─────────────────────────────────────────────────────┘
+""")
+
+            # 执行修正
+            params = diagnosis['corrective_action'].get('modified_params', params)
+            time.sleep(diagnosis['corrective_action'].get('retry_delay_seconds', 3))
+```
+
+### 质量检查
+
+结构化反思 Action 质量检查：
+- [ ] 包含 failed_tool 名称
+- [ ] 包含 failed_params
+- [ ] 正确分类 error_type
+- [ ] 提供具体的 corrective_action
+- [ ] 记录到 knowledge/reflections/
+
+---
+
 ## Integration with CLAUDE.md
 
 在 Phase 1.2 Critic Evaluation 之后添加：
@@ -535,6 +774,17 @@ for agent_type, eval_result in critic_evaluations.items():
 ---
 
 ## CHANGELOG
+
+### v1.1 (2026-02-21)
+
+**New Feature: 结构化反思 Action**
+- ✅ 工具调用失败时自动诊断
+- ✅ 4 种错误类型分类（参数错误、工具选择错误、权限不足、外部服务异常）
+- ✅ 结构化诊断输出格式
+- ✅ 修正方案生成和执行
+- ✅ "失败-修复"对记录机制
+- ✅ 工具失败处理速查表
+- ✅ 与 Subagent 的集成代码
 
 ### v1.0 (2025-02-20)
 
