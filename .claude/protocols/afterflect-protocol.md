@@ -160,12 +160,81 @@ def calculate_prediction_accuracy(preflect_output, actual_results):
     }
 ```
 
-### Step 5: 更新知识库
+### Step 5: 自动更新知识库（强制执行）
+
+**重要**: AfterFlect 完成后，必须执行以下更新：
+
+#### 5.1 识别新知识
+
+```python
+def identify_new_knowledge(afterflect_output):
+    """
+    从 AfterFlect 输出中识别需要更新的知识
+    """
+    new_knowledge = {
+        "patterns_to_add": [],
+        "risks_to_add": []
+    }
+
+    # 筛选高效果模式（effectiveness >= "medium"）
+    for pattern in afterflect_output.get("learned_patterns", []):
+        if pattern.get("effectiveness") in ["high", "medium"]:
+            new_knowledge["patterns_to_add"].append(pattern)
+
+    # 提取可预防的风险
+    for issue in afterflect_output.get("unexpected_issues", []):
+        if issue.get("future_prevention"):
+            new_knowledge["risks_to_add"].append(issue)
+
+    return new_knowledge
+```
+
+#### 5.2 更新 learned-patterns.md
+
+```
+执行步骤:
+1. 使用 Read 工具读取 .claude/knowledge/reflections/learned-patterns.md
+2. 识别适当的部分（学术论文/GitHub/社区/通用）
+3. 使用 Edit 工具追加新模式
+4. 格式遵循现有模板：
+
+#### {模式名称}
+\```
+适用条件: {when_to_use}
+执行方法: {description}
+预期效果: {expected_outcome}
+效果: {effectiveness}
+发现时间: {timestamp}
+\```
+```
+
+#### 5.3 更新 summary.md
+
+```
+执行步骤:
+1. 使用 Read 工具读取 .claude/knowledge/reflections/summary.md
+2. 识别适当的任务类型部分
+3. 使用 Edit 工具追加新风险到前瞻风险清单表格
+4. 如果有典型场景，添加到场景列表
+```
+
+#### 5.4 验证更新
+
+```
+更新完成后：
+1. 再次读取文件确认更新成功
+2. 记录更新日志：
+   - 更新时间
+   - 更新内容摘要
+   - 来源 agent_type
+```
+
+#### 5.5 原有函数保留
 
 ```python
 def update_knowledge_base(afterflect_output):
     """
-    将 AfterFlect 结果更新到知识库
+    将 AfterFlect 结果更新到知识库（原有函数）
     """
     # 1. 更新成功模式库
     for pattern in afterflect_output.get("learned_patterns", []):

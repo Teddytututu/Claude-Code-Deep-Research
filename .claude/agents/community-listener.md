@@ -568,6 +568,7 @@ def handle_accelerate_mode(discussions_collected, time_remaining):
 | `mcp__web-reader__webReader` | 读取讨论全文 |
 | `Read` | 读取本地 JSON 文件 |
 | `Write` | 保存研究结果 |
+| `Bash` | Git operations (如需验证 GitHub 链接) |
 
 ---
 

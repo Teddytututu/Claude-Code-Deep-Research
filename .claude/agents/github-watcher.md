@@ -561,6 +561,18 @@ def handle_accelerate_mode(projects_collected, time_remaining):
 | `mcp__zread__search_doc` | 搜索文档和代码 |
 | `Read` | 读取本地 JSON 文件 |
 | `Write` | 保存研究结果 |
+| `Bash` | Git operations (验证仓库存在性，使用 `git ls-remote`) |
+
+---
+
+## Repository Existence Validation (节省 WebSearch 额度)
+
+**CRITICAL**: 使用 `git ls-remote` 验证仓库存在性，不消耗 WebSearch 配额
+
+验证优先级:
+1. **git ls-remote** (首选): `git ls-remote https://github.com/org/repo.git`
+2. **mcp__zread__get_repo_structure** (备选): 获取仓库结构
+3. **WebSearch** (最后手段): 仅在必要时使用
 
 ---
 

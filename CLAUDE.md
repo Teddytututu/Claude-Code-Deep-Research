@@ -390,7 +390,7 @@ ELSE:
 | deep-research-report-writer | `.claude/agents/deep-research-report-writer.md` | 综合报告 | Read, Write, Glob |
 | literature-review-writer | `.claude/agents/literature-review-writer.md` | 文献综述 | Read, Write, Glob |
 | **Quality & Tasks** |||||
-| link-validator | `.claude/agents/link-validator.md` | 链接验证 | mcp__web-reader__*, Read |
+| link-validator | `.claude/agents/link-validator.md` | 链接验证 | mcp__web-reader__*, Read, Write, Bash |
 | task_handle | `.claude/agents/task_handle.md` | 定制任务 | Read, Write, Glob |
 | readiness-assessor | `.claude/agents/readiness-assessor.md` | 生产就绪评估 | Task, Read, WebSearch |
 | timeout-specialist | `.claude/agents/timeout-specialist.md` | 超时处理 | Task, Read |
@@ -666,17 +666,62 @@ pseudo:
 
 ---
 
-### Phase 1.1: Completion Check & Continuation
+### Phase 1.1: Completion Check & Auto-Continuation
 
 **目的**: 检查子智能体是否完成，未完成则从 checkpoint 续传
 **触发**: Phase 1 subagents 完成后
+
+#### 自动续传规则（无需人工介入）
+
+```
+IF subagent timed_out OR subagent status == "incomplete":
+    IF time_remaining > per_agent_timeout * 0.3:
+        ACTION: 自动重新启动 subagent (带 resume 参数)
+        LOG: "Auto-continuing {agent_type} from checkpoint"
+    ELSE:
+        ACTION: 使用当前检查点数据继续
+        LOG: "Insufficient time, proceeding with available data"
+```
+
+#### 实施指令
+
+当检测到 `Request timed out` 或 `[Request interrupted by user for tool use]` 时：
+1. 检查 `time_remaining` 是否 > 30% 原始预算
+2. 如果是，自动使用 `resume` 参数重新启动 Task（**无需用户输入 "continue"**）
+3. 如果否，标记为 "partial_complete" 并继续下一阶段
+
+#### 示例代码
+
+```python
+# 在 Lead Agent 的执行逻辑中
+def handle_subagent_timeout(subagent_type, previous_agent_id, time_budget):
+    """
+    自动处理 Subagent 超时（无需人工介入）
+    """
+    if time_budget.remaining > time_budget.per_agent * 0.3:
+        # 自动续传，无需用户输入
+        print(f"⏱️ Auto-continuing {subagent_type} from checkpoint...")
+        subagent_result = Task(
+            subagent_type=subagent_type,
+            prompt=continue_prompt,
+            resume=previous_agent_id  # 恢复上下文
+        )
+    else:
+        # 时间不足，使用已有数据
+        print(f"⚠️ Insufficient time, proceeding with partial data from {subagent_type}")
+        subagent_result = load_partial_result(subagent_type)
+
+    return subagent_result
+```
+
+#### 常规检查逻辑
 
 ```
 pseudo:
 1. 对每个 subagent 调用 check_minimum_requirements(output_file, agent_type)
 2. 如果未完成且有时间:
    - 找到最新 checkpoint
-   - 调用 should_continue_agent(time_allocation)
+   - 调用 handle_subagent_timeout() 自动判断
    - 如果 status == "continue": 重新启动 agent (带新 max_turns)
 3. 最多 2 次续传
 ```
@@ -902,6 +947,9 @@ pseudo:
 | `mcp__zread__*` | GitHub 分析 | 开源调研 |
 | `mcp__web-reader__webReader` | 阅读网页 | 社区调研 / Phase 2d |
 | `Task` | 创建 Subagent | 并行执行 |
+| `Bash` | Git operations, file system access | 验证仓库存在性、文件操作 |
+| `tools/validate_links.py` | 链接提取与分类 | Phase 2d, link-validator agent |
+| `tools/batch_link_validator.py` | 批量链接验证 | Phase 2d, link-validator agent |
 
 ---
 

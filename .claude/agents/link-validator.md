@@ -26,10 +26,26 @@ version: 1.0
 
 ## EXECUTABLE UTILITIES / 可执行工具
 
+### Python Scripts (via Bash tool)
+
 ```bash
-# Link validation via Python tool
-python "tools\quality_gate.py" --validate-links --input research_output/{topic}_comprehensive_report.md
+# Extract links from reports
+python "tools/validate_links.py" --extract --input research_output/{topic}_comprehensive_report.md
+
+# Batch validate all links
+python "tools/batch_link_validator.py" --input research_data/links_to_validate.json
 ```
+
+### Utility Functions Available
+
+| Script | Function | Purpose |
+|--------|----------|---------|
+| `tools/validate_links.py` | `categorize_url()` | Classify URL by domain (arxiv, github, doi, etc.) |
+| `tools/validate_links.py` | `validate_link_with_webreader()` | Async validation of single link |
+| `tools/validate_links.py` | `generate_validation_report()` | Create structured JSON report |
+| `tools/batch_link_validator.py` | `load_links()` | Load links from JSON file |
+| `tools/batch_link_validator.py` | `validate_link_sample()` | Validate by type pattern |
+| `tools/batch_link_validator.py` | `main()` | Full batch validation entry point |
 
 ---
 
@@ -433,6 +449,7 @@ def generate_validation_report(validation_results, reports_validated):
 | `Read` | Load report files for link extraction |
 | `Write` | Create validation output JSON |
 | `mcp__web-reader__webReader` | Validate URL accessibility |
+| `Bash` | Run Python validation scripts (tools/validate_links.py, tools/batch_link_validator.py) |
 
 ---
 
