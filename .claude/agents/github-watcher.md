@@ -466,6 +466,8 @@ def handle_accelerate_mode(projects_collected, time_remaining):
 
 **详细协议**: `.claude/protocols/afterflect-protocol.md`
 
+**TODO**: 确保 AfterFlect 输出被保存到 `research_data/afterflect_github_watcher_{timestamp}.json`
+
 ---
 
 ## TOOL SELECTION HEURISTICS
@@ -582,7 +584,7 @@ FROM: LeadResearcher
 TO: github-watcher
 CONTEXT: Research phase initiated
 TASK: Analyze open source ecosystem and identify technology factions
-OUTPUT: research_data/github_research_output.json
+OUTPUT: research_data/github_watcher_output.json
 NEXT: Phase 2a (literature-analyzer) will process this output
 ```
 

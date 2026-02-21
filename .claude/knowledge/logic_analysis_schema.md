@@ -3,6 +3,7 @@
 > **Purpose**: Complete JSON schema and examples for literature-analyzer output.
 > **Usage**: Reference this file via `@knowledge:logic_analysis_schema.md`
 > **Depends on**: `@knowledge:value_assessment.md`, `@knowledge:institution_patterns.md`
+> **Version**: 2.6 (2026-02-19)
 
 ---
 

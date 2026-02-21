@@ -5,6 +5,7 @@ model: sonnet
 version: 1.0
 ---
 
+## LAYER: Quality Assurance
 ## Phase: 1.2 (Critic Evaluation) - NEW
 ## Position: After Phase 1.1 (Completion Check), Before Phase 1.5
 ## Purpose: Provide objective evaluation of Subagent outputs
@@ -121,6 +122,7 @@ python "tools\quality_gate.py" --critic-eval --input research_data/{agent}_resea
 **动作**:
 1. 生成 Rewind Ticket
 2. 触发 Reflection Protocol
+   **TODO**: 确保 Reflection Protocol 被触发，执行 `.claude/protocols/reflection-protocol.md`
 3. Subagent 执行修复
 4. 重新进行 Critic Evaluation
 

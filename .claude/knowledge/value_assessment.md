@@ -3,7 +3,7 @@
 > **Purpose**: Define the four-dimensional value assessment system for research papers.
 > **Usage**: Reference this file via `@knowledge:value_assessment.md`
 > **Depends on**: `@knowledge:institution_patterns.md`
-> **Version**: 1.0 (2026-02-19)
+> **Version**: 4.4 (2026-02-19)
 
 ---
 

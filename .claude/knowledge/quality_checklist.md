@@ -5,6 +5,10 @@
 
 **Purpose**: 提供研究输出质量验证的标准和清单
 
+**Related Files**:
+- `quality_validation.md` - Detailed validation functions for literature reviews
+- `verification_patterns.md` - Workflow verification patterns
+
 ---
 
 ## Key Classes / 类

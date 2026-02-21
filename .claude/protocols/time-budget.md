@@ -2,6 +2,8 @@
 
 时间预算管理协议 - 用于管理深度研究系统的时间分配和超时控制。
 
+**Version**: v1.0 (2026-02-21)
+
 ---
 
 ## 核心原则
@@ -103,4 +105,4 @@ from tools.checkpoint_manager import (
 
 - `tools/checkpoint_manager.py` - 实现
 - `CLAUDE.md` - Phase 0.85, Phase 1.1
-- `.claude/agents/*/md` - Agent-specific timeout protocols
+- `.claude/agents/*.md` - Agent-specific timeout protocols

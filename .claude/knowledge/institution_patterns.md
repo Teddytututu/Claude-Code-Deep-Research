@@ -2,7 +2,7 @@
 
 > **Purpose**: Define patterns for identifying high-value research backed by major institutions.
 > **Usage**: Reference this file via `@knowledge:institution_patterns.md`
-> **Version**: 1.0 (2026-02-19)
+> **Version**: 2.6 (2026-02-19)
 
 ---
 

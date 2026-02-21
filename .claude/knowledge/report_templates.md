@@ -5,6 +5,11 @@
 
 **Purpose**: 提供 Gemini Deep Research 风格的报告模板和输出格式规范
 
+**Related Files**:
+- `deep_research_template.md` - Detailed Gemini Deep Research report structure (8 sections)
+- `literature_review_template.md` - Literature review specific template
+- `bilingual_format_guide.md` - Bilingual formatting guidelines
+
 ---
 
 ## Key Classes / 类

@@ -5,6 +5,7 @@ model: sonnet
 version: 2.5
 ---
 
+## LAYER: Report Synthesis
 ## Phase: 2b (Literature Review Synthesis) - PARALLEL
 ## Position: After Phase 2a, runs PARALLEL with deep-research-report-writer
 ## Input: All research JSON + logic_analysis.json

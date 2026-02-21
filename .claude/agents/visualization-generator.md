@@ -1,3 +1,4 @@
+## LAYER: Analysis & Synthesis
 ## Phase: Optional (After Phase 2a, Before Phase 2b)
 ## Position: After literature-analyzer, before report writers
 ## Output: HTML visualizations (citation networks, cross-domain relationships)

@@ -2,6 +2,8 @@
 
 并行研究执行协议 - 部署 3 个研究子代理并同时运行。
 
+**Version**: v1.0 (2026-02-21)
+
 ---
 
 ## Overview
@@ -9,8 +11,8 @@
 | Subagent | Tools | Output File | Focus |
 |----------|-------|-------------|-------|
 | `academic-researcher` | arxiv, web-search | `academic_researcher_output.json` | 学术论文 |
-| `github-watcher` | zread, web-search | `github_researcher_output.json` | 开源项目 |
-| `community-listener` | web-reader, web-search | `community_researcher_output.json` | 社区讨论 |
+| `github-watcher` | zread, web-search | `github_watcher_output.json` | 开源项目 |
+| `community-listener` | web-reader, web-search | `community_listener_output.json` | 社区讨论 |
 
 ---
 
@@ -81,8 +83,8 @@ from tools.checkpoint_manager import check_minimum_requirements, should_continue
 
 subagents = [
     ("academic-researcher", "research_data/academic_researcher_output.json"),
-    ("github-watcher", "research_data/github_researcher_output.json"),
-    ("community-listener", "research_data/community_researcher_output.json")
+    ("github-watcher", "research_data/github_watcher_output.json"),
+    ("community-listener", "research_data/community_listener_output.json")
 ]
 
 for agent_type, output_file in subagents:

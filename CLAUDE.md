@@ -466,8 +466,51 @@ ELSE:
 | 文件 | 路径 | 用途 |
 |------|------|------|
 | Quality Checklist | `.claude/knowledge/quality_checklist.md` | 质量检查清单 |
+| Quality Validation | `.claude/knowledge/quality_validation.md` | 质量验证函数 |
 | Verification Patterns | `.claude/knowledge/verification_patterns.md` | 验证模式 |
 | Report Templates | `.claude/knowledge/report_templates.md` | 报告模板 |
+| Deep Research Template | `.claude/knowledge/deep_research_template.md` | 综合报告模板 |
+| Literature Review Template | `.claude/knowledge/literature_review_template.md` | 文献综述模板 |
+
+### 逻辑分析与价值评估
+
+| 文件 | 路径 | 用途 |
+|------|------|------|
+| Logic Analysis | `.claude/knowledge/logic_analysis.md` | PRISMA 2020 分析方法 |
+| Logic Analysis Schema | `.claude/knowledge/logic_analysis_schema.md` | JSON Schema (v2.6) |
+| Value Assessment | `.claude/knowledge/value_assessment.md` | 价值评估框架 (v4.4) |
+| Institution Patterns | `.claude/knowledge/institution_patterns.md` | 机构识别模式 (v2.6) |
+
+### 模式与指南
+
+| 文件 | 路径 | 用途 |
+|------|------|------|
+| Resilience Patterns | `.claude/knowledge/resilience_patterns.md` | 弹性模式 |
+| Anti-Patterns | `.claude/knowledge/anti_patterns.md` | 反模式检测 |
+| Bilingual Format Guide | `.claude/knowledge/bilingual_format_guide.md` | 双语格式指南 |
+| Writing Principles | `.claude/knowledge/writing_principles.md` | 写作原则 |
+
+### 专项与社区
+
+| 文件 | 路径 | 用途 |
+|------|------|------|
+| Chinese Community Insights | `.claude/knowledge/chinese_community_insights.md` | 中文社区洞察 |
+| Cross Domain Tracker | `.claude/knowledge/cross_domain_tracker.md` | 跨域追踪 |
+
+### 状态与反思
+
+| 文件 | 路径 | 用途 |
+|------|------|------|
+| Research State | `.claude/knowledge/research_state.md` | 研究状态结构 |
+| Reflections Summary | `.claude/knowledge/reflections/summary.md` | 反思总结 |
+| Learned Patterns | `.claude/knowledge/reflections/learned-patterns.md` | 成功模式 |
+
+### 其他工具
+
+| 文件 | 路径 | 用途 |
+|------|------|------|
+| Knowledge Template | `.claude/knowledge/knowledge_template.md` | 知识库模板 |
+| CLI Reference | `.claude/knowledge/cli_reference.md` | CLI 命令参考 |
 
 ---
 

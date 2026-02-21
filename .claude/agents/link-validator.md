@@ -5,6 +5,7 @@ model: sonnet
 version: 1.0
 ---
 
+## LAYER: Quality & Tasks
 ## Phase: 2d (Link Validation) - AUTOMATIC
 ## Position: After Phase 2b completes (BOTH reports)
 ## Input: Both report files (comprehensive + literature review)

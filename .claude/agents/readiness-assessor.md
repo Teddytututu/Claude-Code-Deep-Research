@@ -5,6 +5,7 @@ model: sonnet
 version: 6.1
 ---
 
+## LAYER: Meta-Orchestrator
 ## Phase: 0.75 (Production Readiness) - OPTIONAL
 ## Position: After Phase 0.5, before Phase 0.85
 ## Trigger: User asks about production deployment
@@ -12,6 +13,13 @@ version: 6.1
 ## Input: Framework or pattern to assess
 ## Output: Production readiness score with risk assessment (JSON)
 ## Next: Phase 0.85 (timeout-specialist) or Phase 1 (Research Execution)
+
+---
+
+## KNOWLEDGE BASE / 知识库
+
+@knowledge: .claude/knowledge/framework_selection.md
+@knowledge: .claude/knowledge/hierarchical_orchestration.md
 
 ---
 

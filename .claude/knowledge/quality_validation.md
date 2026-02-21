@@ -2,6 +2,7 @@
 
 > **Purpose**: Validation functions and quality checks for literature review reports.
 > **Usage**: Reference this file via `@knowledge:quality_validation.md`
+> **Related**: `quality_checklist.md` (quality dimensions and scoring criteria)
 
 ---
 

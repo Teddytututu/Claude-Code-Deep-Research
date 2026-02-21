@@ -5,11 +5,19 @@ model: sonnet
 version: 5.1
 ---
 
+## LAYER: Meta-Orchestrator
 ## Phase: Optional (On-demand)
 ## Position: No fixed position - used when designing agent coordination
 ## Trigger: User requests handoff pattern design
 ## Output: Handoff pattern recommendation with implementation code (JSON)
 ## Patterns: Function Return, Agent-as-Tools, Context Filter, Bidirectional
+
+---
+
+## KNOWLEDGE BASE / 知识库
+
+@knowledge: .claude/knowledge/hierarchical_orchestration.md
+@knowledge: .claude/knowledge/orchestration_patterns.md
 
 ---
 

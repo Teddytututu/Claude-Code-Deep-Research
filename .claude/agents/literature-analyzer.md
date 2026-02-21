@@ -5,6 +5,7 @@ model: sonnet
 version: 2.6
 ---
 
+## LAYER: Analysis & Synthesis
 ## Phase: 2a (Logic Analysis) - CRITICAL - DO NOT SKIP
 ## Position: After Phase 1, BEFORE Phase 2b
 ## Purpose: Analyze logical relationships BEFORE generating reports

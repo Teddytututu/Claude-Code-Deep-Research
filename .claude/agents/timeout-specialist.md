@@ -5,6 +5,7 @@ model: sonnet
 version: 7.0
 ---
 
+## LAYER: Meta-Orchestrator
 ## Phase: 0.85 (Timeout Budget Allocation) - CONDITIONAL
 ## Position: After Phase 0.75, before Phase 1
 ## Trigger: User specifies time budget (e.g., "给我1小时", "in 30 minutes")

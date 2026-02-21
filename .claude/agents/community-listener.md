@@ -473,6 +473,8 @@ def handle_accelerate_mode(discussions_collected, time_remaining):
 
 **详细协议**: `.claude/protocols/afterflect-protocol.md`
 
+**TODO**: 确保 AfterFlect 输出被保存到 `research_data/afterflect_community_listener_{timestamp}.json`
+
 ---
 
 ## TOOL SELECTION HEURISTICS
@@ -589,7 +591,7 @@ FROM: LeadResearcher
 TO: community-listener
 CONTEXT: Research phase initiated
 TASK: Gather community discussions and practical insights
-OUTPUT: research_data/community_research_output.json
+OUTPUT: research_data/community_listener_output.json
 NEXT: Phase 2a (literature-analyzer) will process this output
 ```
 

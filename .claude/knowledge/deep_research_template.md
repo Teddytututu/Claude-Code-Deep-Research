@@ -1,7 +1,8 @@
 # Deep Research Report Template / 深度研究报告模板
 
-> **Purpose**: Report structure for Gemini Deep Research style comprehensive reports.
+> **Purpose**: Detailed report structure for Gemini Deep Research style comprehensive reports (8 sections).
 > **Usage**: Reference this file via `@knowledge:deep_research_template.md`
+> **Related**: `report_templates.md` (report format classes and basic templates)
 
 ---
 

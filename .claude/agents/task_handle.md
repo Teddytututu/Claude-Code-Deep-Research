@@ -5,6 +5,7 @@ model: sonnet
 version: 1.0
 ---
 
+## LAYER: Quality & Tasks
 ## Phase: 2e (Custom Task Output) - OPTIONAL
 ## Position: After Phase 2d, FINAL phase
 ## Trigger: User specifies custom output format

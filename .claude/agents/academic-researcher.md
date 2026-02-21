@@ -465,6 +465,8 @@ def handle_accelerate_mode(papers_collected, time_remaining):
 
 **详细协议**: `.claude/protocols/afterflect-protocol.md`
 
+**TODO**: 确保 AfterFlect 输出被保存到 `research_data/afterflect_academic_researcher_{timestamp}.json`
+
 ---
 
 ## TOOL SELECTION HEURISTICS
@@ -607,7 +609,7 @@ FROM: LeadResearcher
 TO: academic-researcher
 CONTEXT: Research phase initiated
 TASK: Conduct academic paper research
-OUTPUT: research_data/academic_research_output.json
+OUTPUT: research_data/academic_researcher_output.json
 NEXT: Phase 2a (literature-analyzer) will process this output
 ```
 
