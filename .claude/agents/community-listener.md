@@ -429,6 +429,50 @@ def handle_accelerate_mode(discussions_collected, time_remaining):
     return actions
 ```
 
+### Step 8: AfterFlect 事后反思（任务完成后执行）
+
+**触发条件**: 任务完成且输出文件已保存
+
+#### Step 8.1: 回顾 PreFlect 预测
+
+加载本次任务的 PreFlect 输出，对比预测与实际结果：
+- `predicted_risks_occurred`: 预测且发生的风险
+- `predicted_risks_avoided`: 预测但未发生的风险（预防成功）
+- `unexpected_issues`: 未预测到的问题
+
+#### Step 8.2: 输出 AfterFlect 报告
+
+```json
+{
+  "afterflect_id": "af_{timestamp}",
+  "preflect_id": "pf_xxx",
+  "agent_type": "community-listener",
+  "prediction_accuracy": {
+    "precision": 1.0,
+    "recall": 0.67
+  },
+  "success_factors": [
+    {"factor": "批量共识提取", "impact": "high", "reusable": true},
+    {"factor": "跨平台对比", "impact": "high", "reusable": true}
+  ],
+  "learned_patterns": [
+    {"pattern": "批量共识提取", "effectiveness": "high", "when_to_use": "所有社区调研"},
+    {"pattern": "跨平台对比", "effectiveness": "high", "when_to_use": "需要多元视角时"}
+  ],
+  "consensus_points_found": ["AutoGen快、CrewAI稳、LangGraph强"],
+  "recommendations_for_next_time": [
+    "增加登录限制风险评估"
+  ]
+}
+```
+
+#### Step 8.3: 更新知识库
+
+- 如果发现新模式 → 更新 `.claude/knowledge/reflections/learned-patterns.md`
+- 如果发现新风险 → 更新 `.claude/knowledge/reflections/summary.md`
+
+**详细协议**: `.claude/protocols/afterflect-protocol.md`
+
 ---
 
 ## TOOL SELECTION HEURISTICS
@@ -552,6 +596,13 @@ NEXT: Phase 2a (literature-analyzer) will process this output
 ---
 
 ## CHANGELOG
+
+### v6.7 (2026-02-21)
+- **New**: AfterFlect 事后反思（Step 8）
+  - 回顾 PreFlect 预测准确性
+  - 提炼成功模式和经验教训
+  - 更新知识库（learned-patterns.md）
+- **Protocol**: 集成 `.claude/protocols/afterflect-protocol.md`
 
 ### v6.6 (2026-02-21)
 - **New**: PreFlect 前瞻反思（Step 0）

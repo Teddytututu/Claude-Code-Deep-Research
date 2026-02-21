@@ -424,6 +424,48 @@ def handle_accelerate_mode(projects_collected, time_remaining):
     return actions
 ```
 
+### Step 8: AfterFlect 事后反思（任务完成后执行）
+
+**触发条件**: 任务完成且输出文件已保存
+
+#### Step 8.1: 回顾 PreFlect 预测
+
+加载本次任务的 PreFlect 输出，对比预测与实际结果：
+- `predicted_risks_occurred`: 预测且发生的风险
+- `predicted_risks_avoided`: 预测但未发生的风险（预防成功）
+- `unexpected_issues`: 未预测到的问题
+
+#### Step 8.2: 输出 AfterFlect 报告
+
+```json
+{
+  "afterflect_id": "af_{timestamp}",
+  "preflect_id": "pf_xxx",
+  "agent_type": "github-watcher",
+  "prediction_accuracy": {
+    "precision": 0.67,
+    "recall": 0.5
+  },
+  "success_factors": [
+    {"factor": "论文→代码关联", "impact": "high", "reusable": true},
+    {"factor": "Stars 渐进筛选", "impact": "medium", "reusable": true}
+  ],
+  "learned_patterns": [
+    {"pattern": "论文→代码关联", "effectiveness": "high", "when_to_use": "寻找官方实现"}
+  ],
+  "recommendations_for_next_time": [
+    "增加 Rate Limit 风险评估"
+  ]
+}
+```
+
+#### Step 8.3: 更新知识库
+
+- 如果发现新模式 → 更新 `.claude/knowledge/reflections/learned-patterns.md`
+- 如果发现新风险 → 更新 `.claude/knowledge/reflections/summary.md`
+
+**详细协议**: `.claude/protocols/afterflect-protocol.md`
+
 ---
 
 ## TOOL SELECTION HEURISTICS
@@ -547,6 +589,13 @@ NEXT: Phase 2a (literature-analyzer) will process this output
 ---
 
 ## CHANGELOG
+
+### v6.7 (2026-02-21)
+- **New**: AfterFlect 事后反思（Step 8）
+  - 回顾 PreFlect 预测准确性
+  - 提炼成功模式和经验教训
+  - 更新知识库（learned-patterns.md）
+- **Protocol**: 集成 `.claude/protocols/afterflect-protocol.md`
 
 ### v6.6 (2026-02-21)
 - **New**: PreFlect 前瞻反思（Step 0）

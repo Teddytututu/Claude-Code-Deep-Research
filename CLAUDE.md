@@ -114,6 +114,11 @@
 └───────────────────┬───────────────────────┘
                     │
 ┌───────────────────┴───────────────────────┐
+│ Phase 1.15: AfterFlect 事后反思 (NEW)      │
+│   验证 PreFlect 预测，提炼成功模式          │
+└───────────────────┬───────────────────────┘
+                    │
+┌───────────────────┴───────────────────────┐
 │ Phase 1.2: Critic Evaluation (NEW)        │
 │ Agent: critic-evaluator                   │
 │   PASS → Phase 1.5 | REVISE → Reflection  │
@@ -399,6 +404,7 @@ ELSE:
 | Time Budget | `.claude/protocols/time-budget.md` | 时间预算分配公式 |
 | Phase 1 Parallel Research | `.claude/protocols/phase1-parallel-research.md` | 并行研究执行协议 |
 | PreFlect Protocol | `.claude/protocols/preflect-protocol.md` | 事前前瞻反思协议 |
+| AfterFlect Protocol | `.claude/protocols/afterflect-protocol.md` | 事后回顾反思协议 |
 | Reflection Protocol | `.claude/protocols/reflection-protocol.md` | 反思与错误溯源协议 |
 | Report Generation | `.claude/protocols/report-generation.md` | 报告生成协议 |
 | Modular Structure | `.claude/protocols/modular-structure-plan.md` | 模块化结构规划 |
@@ -641,6 +647,46 @@ pseudo:
 | `community-listener` | 15 threads | 3 consensus points |
 
 > 完整实现见 `@knowledge:phase_protocols.md#phase-11`
+
+---
+
+### Phase 1.15: AfterFlect 事后反思（新增）
+
+**目的**: 在每个 Subagent 完成任务后，执行事后反思，验证 PreFlect 预测并提炼成功模式
+**协议**: `.claude/protocols/afterflect-protocol.md`
+
+```
+pseudo:
+在每个 Subagent 完成任务后：
+1. 加载该 Subagent 的 PreFlect 输出
+2. 对比预测与实际结果:
+   - predicted_risks_occurred: 预测且发生的风险
+   - predicted_risks_avoided: 预测但未发生的风险
+   - unexpected_issues: 未预测到的问题
+3. 计算 PreFlect 预测准确率 (precision/recall)
+4. 提炼成功模式和经验教训
+5. 更新知识库:
+   - learned-patterns.md (成功模式)
+   - summary.md (新发现的风险)
+```
+
+**AfterFlect 输出**:
+- `research_data/afterflect_{agent}_{timestamp}.json`
+
+**与 PreFlect 形成闭环**:
+```
+PreFlect (事前)  →  执行 (事中)  →  AfterFlect (事后)
+     │                  │                  │
+     ▼                  ▼                  ▼
+  预测风险    ───→   执行任务   ───→   验证预测
+     │                  │                  │
+     └──────────────────┴──────────────────┘
+                        │
+                        ▼
+               知识库持续更新
+```
+
+> 详细协议见 `.claude/protocols/afterflect-protocol.md`
 
 ---
 
